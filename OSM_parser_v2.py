@@ -8,6 +8,7 @@ import osmium as o
 import sys
 from xml.etree.cElementTree import parse
 
+
 ## References of relevant objects are stored
 class WaterwayFilter(o.SimpleHandler):
 
@@ -15,10 +16,23 @@ class WaterwayFilter(o.SimpleHandler):
         super(WaterwayFilter, self).__init__()
         self.nodes = set()
 
+    def filter(self, tags):
+        if tags['waterway'] == 'river':
+            return 1
+        else:
+            return 0
+
     def way(self, w):
-        if 'waterway' in w.tags:
+        if 'waterway' in w.tags \
+                and (w.tags['waterway'] == 'riverbank' \
+                or w.tags['waterway'] == 'river' \
+                or w.tags['waterway'] == 'dock' \
+                or w.tags['waterway'] == 'canal'):
+            print w.tags
+            print '--'
             for n in w.nodes:
                 self.nodes.add(n.ref)
+
 
 ## All related objects with reminded objects are written to new file
 class WaterwayWriter(o.SimpleHandler):
@@ -33,10 +47,15 @@ class WaterwayWriter(o.SimpleHandler):
             self.writer.add_node(n)
 
     def way(self, w):
-        if 'waterway' in w.tags:
+        if 'waterway' in w.tags \
+                and (w.tags['waterway'] == 'riverbank' \
+                or w.tags['waterway'] == 'river' \
+                or w.tags['waterway'] == 'dock' \
+                or w.tags['waterway'] == 'canal'):
             self.writer.add_way(w)
 
-## Get coordinates of every object in new file
+
+## Get coordinates of every object in new file comparing with old file
 class WaterwayCollector(o.SimpleHandler):
 
     def __init__(self, nodes):
@@ -47,6 +66,24 @@ class WaterwayCollector(o.SimpleHandler):
     def node(self, n):
         if n.id in self.nodes:
             self.coords.add((n.location.lon, n.location.lat))
+
+
+## Get coordinates of every object in new file
+class WaterwayCollector2(o.SimpleHandler):
+
+    def __init__(self):
+        super(WaterwayCollector2, self).__init__()
+        self.coords = set()
+        self.areas = []
+
+    def node(self, n):
+        self.coords.add((n.location.lon, n.location.lat, n.id ))
+
+    def way(self, w):
+        way = []
+        for n in w.nodes:
+            way.append(n.ref)
+        self.areas.append(way)
 
 class BoundsFinder():
 

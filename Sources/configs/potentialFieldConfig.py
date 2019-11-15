@@ -7,14 +7,14 @@ mysql = {'host': 'localhost',
 
 # PF's parameters
 Gatt = 5.0  # attractive potential gain
-Grep = 100.0  # repulsive potential gain
+Grep = 1.0  # repulsive potential gain
 AREA_WIDTH = 100.0  # potential area width [m]
 grid_size = 1  # potential grid size [m]
 
 # ships parameters
-slon = 3.7408  # start lon position
-slat = 51.1064  # start lat positon
-robot_radius = 1000  # robot radius [m]
+slon = 3.7517#3.7408  # start lon position
+slat = 51.0919#51.1064  # start lat positon
+robot_radius = 100.0  # robot radius [m]
 
 # Viewrange ship
 front = 800

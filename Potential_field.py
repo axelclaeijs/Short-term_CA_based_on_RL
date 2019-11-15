@@ -5,19 +5,37 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import axes3d
 from matplotlib import cm
 import Sources.configs.potentialFieldConfig as pfConfig
+import math
+import sys
 
 show_animation = True
 
 
 def calc_potential_field(xmin, xmax, ymin, ymax, sx, sy, gx, gy, ox, oy, reso, rr):
     count = 0
+
     # scale
     minx = sx - pfConfig.left
     miny = sy - pfConfig.back
     maxx = sx + pfConfig.right
     maxy = sy + pfConfig.front
+
+    if minx < xmin:
+        minx = xmin
+
+    if maxx > xmax:
+        maxx = xmax
+
+    if miny < ymin:
+        miny = ymin
+
+    if maxy > ymax:
+        maxy = ymax
+
     xw = int(round((maxx - minx) / reso))
     yw = int(round((maxy - miny) / reso))
+
+    maxcnt = xw * yw
 
     # calc each potential
     pmap = [[0.0 for i in range(yw)] for i in range(xw)]
@@ -26,15 +44,13 @@ def calc_potential_field(xmin, xmax, ymin, ymax, sx, sy, gx, gy, ox, oy, reso, r
         x = ix * reso + minx
 
         for iy in range(yw):
+            count += 1
             y = iy * reso + miny
             ug = 0  # calc_attractive_potential(x, y, gx, gy)
             uo = calc_repulsive_potential(x, y, ox, oy, rr)
-            if uo > 0:
-                count += 1
             uf = ug + uo
             pmap[ix][iy] = uf
 
-    print 'nr of objects in field: ', count
     return pmap, xw, yw
 
 
@@ -43,6 +59,7 @@ def calc_attractive_potential(x, y, gx, gy):
 
 
 def calc_repulsive_potential(x, y, ox, oy, rr):
+
     # search nearest obstacle
     minid = -1
     dmin = float("inf")
@@ -60,7 +77,8 @@ def calc_repulsive_potential(x, y, ox, oy, rr):
             if dq <= 0.1:
                 dq = 0.1
 
-            return 0.5 * pfConfig.Grep * (1.0 / dq - 1.0 / rr) ** 2
+            value = 0.5 * pfConfig.Grep * (1.0 / dq - 1.0 / rr) ** 2
+            return math.log(value)
         else:
             return 0.0
     else:

@@ -1,20 +1,28 @@
-import geopy.distance
+
+from geopy.distance import lonlat, geodesic
+import math
+
+# Constants
+R = 6371    # Earth's Radius [km]
 
 
-def coordsToMeters(lon, lat, ref_lon, ref_lat):
-    x = geopy.distance.vincenty((ref_lon, 0), (lon, 0)).m
-    y = geopy.distance.vincenty((0, ref_lat), (0, lat)).m
+def coordsToMeters(lon, lat):
+    x = R * math.cos(lat) * math.cos(lon)
+    y = R * math.cos(lat) * math.sin(lon)
 
     return x, y
 
 
-def lonToX(lon, ref_lon):
-    return geopy.distance.vincenty((ref_lon, 0), (lon, 0)).m
+def lonToX(lon, lat):
+    return R * math.cos(lat) * math.cos(lon)
 
 
-def latToY(lat, ref_lat):
-    return geopy.distance.vincenty((0, ref_lat), (0, lat)).m
+def latToY(lon, lat):
+    return R * math.cos(lat) * math.sin(lon)
 
 
 def distance(lon1, lat1, lon2, lat2):
-    return geopy.distance.vincenty((lon1, lat1), (lon2, lat2)).m
+    loc1 = (lon1, lat1)
+    loc2 = (lon2, lat2)
+    return geodesic(lonlat(*loc1), lonlat(*loc2)).m
+

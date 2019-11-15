@@ -1,39 +1,43 @@
 import OSM_parser_v2 as parser
-import Potential_field as PF
+import Full_Potential_field as PF
 import Util.Transform as transform
 import Sources.configs.potentialFieldConfig as pfConfig
 import math
+import matplotlib.pyplot as plt
+import math
+import Object
 
 if __name__ == '__main__':
     if len(parser.sys.argv) != 3:
-        print("> Usage: python main.py <infile> <outfile>")
+        print("> Usage: python main3.py <infile> <outfile>")
         parser.sys.exit(-1)
 
-    print("-----------------")
+    print("-----------------------------------------------------------------------------------------------------------")
     print(" Start parsing OSM file")
-    print("-----------------")
+    print("-----------------------------------------------------------------------------------------------------------")
 
     # go through the ways to find all relevant nodes
-    ways = parser.WaterwayFilter()
-    ways.apply_file(parser.sys.argv[1])
-
-    print "> Number of nodes in file: ", len(ways.nodes)
+    # ways = parser.WaterwayFilter()
+    # ways.apply_file(parser.sys.argv[1])
 
     # go through the file again and write out the data
-    writer = parser.o.SimpleWriter(parser.sys.argv[2])
-    parser.WaterwayWriter(writer, ways.nodes).apply_file(parser.sys.argv[1])
+    # writer = parser.o.SimpleWriter(parser.sys.argv[2])
+    # parser.WaterwayWriter(writer, ways.nodes).apply_file(parser.sys.argv[1])
+    #
+    # writer.close()
 
-    writer.close()
-
-    nodes = parser.WaterwayCollector(ways.nodes)
+    nodes = parser.WaterwayCollector2()
     nodes.apply_file(parser.sys.argv[2])
 
     boundFinder = parser.BoundsFinder(parser.sys.argv[1])
     boundFinder.find()
 
-    print("-----------------")
-    print(" Start potential field generator")
-    print("-----------------")
+    print ("> Number of nodes: ", len(nodes.coords))
+    print ("> Number of areas: ", len(nodes.areas))
+
+    print("-----------------------------------------------------------------------------------------------------------")
+    print(" Start analyzing objects")
+    print("-----------------------------------------------------------------------------------------------------------")
 
     # ref lon and lat to more usable variables
     ref_lonmin = boundFinder.minlon
@@ -41,46 +45,123 @@ if __name__ == '__main__':
     ref_latmin = boundFinder.minlat
     ref_latmax = boundFinder.maxlat
 
+    # absolute (lon,lat) to (x,y) conversion
+    xmin = transform.lonToX(ref_lonmin, ref_latmin)
+    xmax = transform.lonToX(ref_lonmax, ref_latmin)
+    ymin = transform.latToY(ref_lonmin, ref_latmin)
+    ymax = transform.latToY(ref_lonmin, ref_latmax)
+
+    # x- and y- width
+    xw = transform.distance(ref_lonmin, ref_latmin, ref_lonmax, ref_latmin)
+    yw = transform.distance(ref_lonmin, ref_latmin, ref_lonmin, ref_latmax)
+
     # ref x and y
-    ref_xmin = transform.lonToX(ref_lonmin - ref_lonmin, 0)
-    ref_xmax = transform.lonToX(ref_lonmax - ref_lonmin, 0)
-    ref_ymin = transform.latToY(ref_latmin - ref_latmin, 0)
-    ref_ymax = transform.latToY(ref_latmax - ref_latmin, 0)
+    sx, sy = transform.coordsToMeters(pfConfig.slon, pfConfig.slat)
 
-    # total PF mapsize
-    mapSizeX, mapSizeY = transform.coordsToMeters(boundFinder.maxlon, boundFinder.maxlat, boundFinder.minlon, boundFinder.minlat)
+    # objects (lon,lat)
+    olon = []
+    olat = []
 
-    # list of all obstacles
+    # objects (x,y)
     ox = []
     oy = []
 
-    # ship x and y
-    sx, sy = transform.coordsToMeters(pfConfig.slon - ref_lonmin, pfConfig.slat - ref_latmin, ref_lonmin - ref_lonmin, ref_latmin - ref_latmin)
-
-    # obstacles x and y
+    # summarize objects
     for coord in nodes.coords:
-        x, y = transform.coordsToMeters(coord[0] - ref_lonmin, coord[1] - ref_latmin, ref_lonmin - ref_lonmin, ref_latmin - ref_latmin)
+        olat.append(coord[1])
+        olon.append(coord[0])
+        x, y = transform.coordsToMeters(coord[0], coord[1])
         ox.append(x)
         oy.append(y)
 
-    print("> Producing map...")
+    print 'max ox: ', max(ox)
+    print 'max oy: ', max(oy)
+    print 'min ox: ', min(ox)
+    print 'min oy: ', min(oy)
 
-    # list of interesting obstacles
-    map_ox = []
-    map_oy = []
+    print 'xmax - xmin= ', (xmax-xmin)
+    print 'ymax - ymin= ', (ymax-ymin)
 
-    # extracting interesting obstacles
-    for i, _ in enumerate(ox):
-        if ox[i] <= sx + pfConfig.right and ox[i] >= sx - pfConfig.left and oy[i] <= sy + pfConfig.front and oy[i] >= sy - pfConfig.back:
-            map_ox.append(ox[i])
-            map_oy.append(oy[i])
+    print 'xw: ', xw
+    print 'yw: ', yw
 
-    # calc potential field
-    pmap, xw, yw = PF.calc_potential_field(ref_xmin, ref_xmax, ref_ymin, ref_ymax, sx, sy, pfConfig.gx, pfConfig.gy, map_ox, map_oy, pfConfig.grid_size, pfConfig.robot_radius)
+    print("-----------------------------------------------------------------------------------------------------------")
+    print(" Plot (lon,lat) graph")
+    print("-----------------------------------------------------------------------------------------------------------")
 
-    print("-----------------")
-    print(" Start potential field drawing")
-    print("-----------------")
+    plt.figure(1)
+    for area in nodes.areas:
+        pltLon = []
+        pltLat = []
+        for ref in area:
+            for n in nodes.coords:
+                if ref == n[2]:
+                    pltLon.append(n[0])
+                    pltLat.append(n[1])
 
-    if PF.show_animation:
-        PF.draw_heatmap(pmap, xw, yw)
+        plt.plot(pltLon, pltLat)
+
+    plt.scatter(pfConfig.slon, pfConfig.slat, color='blue')
+
+    print("-----------------------------------------------------------------------------------------------------------")
+    print(" Plot (x,y) graph")
+    print("-----------------------------------------------------------------------------------------------------------")
+
+    plt.figure(2)
+    cntArea = 0
+    objects = []
+    for area in nodes.areas:
+        pltX = []
+        pltY = []
+        for ref in area:
+            for n in nodes.coords:
+                if ref == n[2]:
+                    x, y = transform.coordsToMeters(n[0], n[1])
+                    pltX.append(x)
+                    pltY.append(y)
+
+        if area[0] == area[-1]:
+            cntArea += 1
+            object = Object.Object(1)
+
+        else:
+            object = Object.Object(0)
+
+        object.addNodes((pltX, pltY))
+        objects.append(object)
+
+    for object in objects:
+        if not(object.area):
+            plt.plot(object.nodes[0], object.nodes[1])
+
+    print cntArea
+
+    plt.scatter(sx, sy, color='blue')
+
+    plt.show()
+
+    print("-----------------------------------------------------------------------------------------------------------")
+    print(" Producing Potential Field map")
+    print("-----------------------------------------------------------------------------------------------------------")
+
+    # # list of interesting obstacles
+    # map_ox = []
+    # map_oy = []
+    #
+    # # extracting interesting obstacles
+    # for i, _ in enumerate(ox):
+    #     if ox[i] <= sx + pfConfig.right and ox[i] >= sx - pfConfig.left and oy[i] <= sy + pfConfig.front and oy[i] >= sy - pfConfig.back:
+    #         map_ox.append(ox[i])
+    #         map_oy.append(oy[i])
+    #
+    # print "> Number of nodes in map: ", len(map_ox)
+    #
+    # # calc potential field
+    # pmap, xw, yw = PF.calc_potential_field(ref_xmin, ref_xmax, ref_ymin, ref_ymax, sx, sy, pfConfig.gx, pfConfig.gy, map_ox, map_oy, pfConfig.grid_size, pfConfig.robot_radius)
+    #
+    # print("-----------------")
+    # print(" Start potential field drawing")
+    # print("-----------------")
+    #
+    # if PF.show_animation:
+    #     PF.draw_heatmap(pmap, xw, yw)
