@@ -3,9 +3,12 @@
 ## The obect can either be an area or waterway
 class Object():
 
-    def __init__(self, type):
+    def __init__(self, type, id):
         self.area = type
-        self.nodes = []
+        self.xy = []
+        self.lonlat = []
+        self.id = id
 
-    def addNodes(self, nodes):
-        self.nodes = nodes
+    def addNodes(self, xy, lonlat):
+        self.xy = xy
+        self.lonlat = lonlat

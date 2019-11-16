@@ -1,5 +1,5 @@
 import OSM_parser_v2 as parser
-import Full_Potential_field as PF
+import Potential_field as PF
 import Util.Transform as transform
 import Sources.configs.potentialFieldConfig as pfConfig
 import math
@@ -86,59 +86,67 @@ if __name__ == '__main__':
     print 'yw: ', yw
 
     print("-----------------------------------------------------------------------------------------------------------")
-    print(" Plot (lon,lat) graph")
+    print(" Generate objects")
     print("-----------------------------------------------------------------------------------------------------------")
 
-    plt.figure(1)
+    cntArea = 0
+    id = 0
+    objects = []
     for area in nodes.areas:
         pltLon = []
         pltLat = []
-        for ref in area:
-            for n in nodes.coords:
-                if ref == n[2]:
-                    pltLon.append(n[0])
-                    pltLat.append(n[1])
-
-        plt.plot(pltLon, pltLat)
-
-    plt.scatter(pfConfig.slon, pfConfig.slat, color='blue')
-
-    print("-----------------------------------------------------------------------------------------------------------")
-    print(" Plot (x,y) graph")
-    print("-----------------------------------------------------------------------------------------------------------")
-
-    plt.figure(2)
-    cntArea = 0
-    objects = []
-    for area in nodes.areas:
         pltX = []
         pltY = []
         for ref in area:
             for n in nodes.coords:
                 if ref == n[2]:
+                    pltLon.append(n[0])
+                    pltLat.append(n[1])
                     x, y = transform.coordsToMeters(n[0], n[1])
                     pltX.append(x)
                     pltY.append(y)
 
         if area[0] == area[-1]:
             cntArea += 1
-            object = Object.Object(1)
+            object = Object.Object(1, id)
 
         else:
-            object = Object.Object(0)
+            object = Object.Object(0, id)
 
-        object.addNodes((pltX, pltY))
+        id += 1
+
+        object.addNodes((pltX, pltY), (pltLon, pltLat))
         objects.append(object)
-
-    for object in objects:
-        if not(object.area):
-            plt.plot(object.nodes[0], object.nodes[1])
 
     print cntArea
 
-    plt.scatter(sx, sy, color='blue')
+    print("-----------------------------------------------------------------------------------------------------------")
+    print(" Plot (x,y) and (lon,lat) graph")
+    print("-----------------------------------------------------------------------------------------------------------")
 
-    plt.show()
+    for object in objects:
+        #if (object.area):
+        plt.figure(1)
+        plt.plot(object.xy[0], object.xy[1])
+        plt.scatter(object.xy[0], object.xy[1])
+        plt.scatter(sx, sy, color='blue')
+        axes = plt.gca()
+        axes.set_xlim([min(ox), max(ox)])
+        axes.set_ylim([min(oy), max(oy)])
+
+        plt.figure(2)
+        plt.plot(object.lonlat[0], object.lonlat[1])
+        plt.scatter(object.lonlat[0], object.lonlat[1])
+        plt.scatter(pfConfig.slon, pfConfig.slat, color='blue')
+        axes = plt.gca()
+        axes.set_xlim([min(olon), max(olon)])
+        axes.set_ylim([min(olat), max(olat)])
+
+    print("-----------------------------------------------------------------------------------------------------------")
+    print(" Cubic spline")
+    print("-----------------------------------------------------------------------------------------------------------")
+
+
 
     print("-----------------------------------------------------------------------------------------------------------")
     print(" Producing Potential Field map")
@@ -156,12 +164,14 @@ if __name__ == '__main__':
     #
     # print "> Number of nodes in map: ", len(map_ox)
     #
-    # # calc potential field
-    # pmap, xw, yw = PF.calc_potential_field(ref_xmin, ref_xmax, ref_ymin, ref_ymax, sx, sy, pfConfig.gx, pfConfig.gy, map_ox, map_oy, pfConfig.grid_size, pfConfig.robot_radius)
-    #
-    # print("-----------------")
-    # print(" Start potential field drawing")
-    # print("-----------------")
-    #
-    # if PF.show_animation:
-    #     PF.draw_heatmap(pmap, xw, yw)
+    # calc potential field
+    pmap, xw, yw = PF.calc_potential_field(min(ox), max(ox), min(oy), max(oy), sx, sy, pfConfig.gx, pfConfig.gy, objects, pfConfig.grid_size, pfConfig.robot_radius)
+
+    print("-----------------------------------------------------------------------------------------------------------")
+    print(" Start potential field drawing")
+    print("-----------------------------------------------------------------------------------------------------------")
+
+    if PF.show_animation:
+        PF.draw_heatmap(pmap, xw, yw)
+
+    plt.show()
