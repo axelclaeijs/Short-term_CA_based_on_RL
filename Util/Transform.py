@@ -6,9 +6,9 @@ import math
 R = 6371    # Earth's Radius [km]
 
 
-def coordsToMeters(lon, lat):
-    x = R * math.cos(lat) * math.cos(lon)
-    y = R * math.cos(lat) * math.sin(lon)
+def coordsToMeters(lon, lat, xmin, ymin):
+    x = (R * math.cos(lat) * math.cos(lon) ) - xmin
+    y = (R * math.cos(lat) * math.sin(lon) ) - ymin
 
     return x, y
 
@@ -26,3 +26,5 @@ def distance(lon1, lat1, lon2, lat2):
     loc2 = (lon2, lat2)
     return geodesic(lonlat(*loc1), lonlat(*loc2)).m
 
+def distance(x1, y1, x2, y2):
+    return math.hypot(x2 - x1, y2 - y1)

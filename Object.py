@@ -8,7 +8,11 @@ class Object():
         self.xy = []
         self.lonlat = []
         self.id = id
+        self.x = []
+        self.y = []
+        self. ref = []
 
     def addNodes(self, xy, lonlat):
         self.xy = xy
         self.lonlat = lonlat
+

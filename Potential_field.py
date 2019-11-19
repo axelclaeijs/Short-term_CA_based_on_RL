@@ -7,18 +7,19 @@ from matplotlib import cm
 import Sources.configs.potentialFieldConfig as pfConfig
 import math
 import sys
+import Util.Transform as transform
 
 show_animation = True
+beta = 1
 
-
-def calc_potential_field(xmin, xmax, ymin, ymax, sx, sy, gx, gy, objects, reso, rr):
+def calc_potential_field(xmin, xmax, ymin, ymax, sx, sy, gx, gy, nodes, reso, rr, objects):
     count = 0
 
     # scale
-    minx = xmin - pfConfig.AREA_WIDTH / 2.0
-    miny = ymin - pfConfig.AREA_WIDTH / 2.0
-    maxx = xmax + pfConfig.AREA_WIDTH / 2.0
-    maxy = ymax + pfConfig.AREA_WIDTH / 2.0
+    minx = xmin - pfConfig.AREA_WIDTH
+    miny = ymin - pfConfig.AREA_WIDTH
+    maxx = xmax + pfConfig.AREA_WIDTH
+    maxy = ymax + pfConfig.AREA_WIDTH
     xw = int(round((maxx - minx) / reso))
     yw = int(round((maxy - miny) / reso))
 
@@ -32,7 +33,7 @@ def calc_potential_field(xmin, xmax, ymin, ymax, sx, sy, gx, gy, objects, reso, 
             count += 1
             y = iy * reso + miny
             ug = 0  # calc_attractive_potential(x, y, gx, gy)
-            uo = calc_repulsive_potential(x, y, objects, rr)
+            uo = calc_repulsive_potential_3(x, y, nodes, rr)
             uf = ug + uo
             pmap[ix][iy] = uf
 
@@ -43,10 +44,38 @@ def calc_attractive_potential(x, y, gx, gy):
     return 0.5 * pfConfig.Gatt * np.hypot(x - gx, y - gy)
 
 
+def calc_repulsive_potential_3(x, y, nodes, rr):
+    freptot = 0
+    for node in nodes:
+        dq = np.hypot(x - node[0], y - node[1])
+        value = 0.5 * pfConfig.Grep * (1.0 / dq - 1.0 / rr) ** 2
+        freptot += value
+
+    return -math.log(freptot)
+
+
+def calc_repulsive_potential_2(x, y, objects, rr):
+    freptot = 0
+    cntObj = 0
+    usedNodeList = []
+    for object in objects:
+        if (object.area):
+            for i,_ in enumerate(object.xy[0]):
+                dq = np.hypot(x - object.xy[0][i], y - object.xy[1][i])
+                if not([object.xy[0][i], object.xy[1][i]] in usedNodeList):
+                    value = 0.5 * pfConfig.Grep * (1.0 / dq - 1.0 / rr) ** 2
+                    freptot += value
+                    usedNodeList.append([object.xy[0][i], object.xy[1][i]])
+
+            cntObj += 1
+
+    return -math.log(freptot)
+
+
 def calc_repulsive_potential(x, y, objects, rr):
 
     # search nearest obstacle
-    minid = [-1, -1]
+    minid = [-1, -1]    # [id of node, id of object]
     dmin = float("inf")
     for object in objects:
         for i,_ in enumerate(object.xy[0]):
@@ -55,8 +84,7 @@ def calc_repulsive_potential(x, y, objects, rr):
                 dmin = d
                 minid = [i, object.id]
 
-
-    if minid >= 0:
+    if not(minid == [0, 0]):# and not(x == objects[minid[1]].xy[0][minid[0]]) and not(y == objects[minid[1]].xy[1][minid[0]]):
         # calc repulsive potential
         dq = np.hypot(x - objects[minid[1]].xy[0][minid[0]], y - objects[minid[1]].xy[1][minid[0]])
 
@@ -66,17 +94,45 @@ def calc_repulsive_potential(x, y, objects, rr):
 
             value = 0.5 * pfConfig.Grep * (1.0 / dq - 1.0 / rr) ** 2
 
-            if objects[minid[1]].area:
-                return value
+            if (objects[minid[1]].area):
+                return math.log(value)
             else:
-                return -value
+                return 0
         else:
             return 0.0
     else:
         return 0.0
 
 
+def draw_slice_heatmap(data, xw):
+    xcnt = 0
+
+    plt.figure()
+    plt.ion()
+    plt.show()
+
+    while 1:
+
+        # make data
+        y = np.array(data[xcnt]).T
+        x = np.linspace(0, xw, xw)
+
+        plt.plot(x, y)
+        plt.draw()
+        plt.pause(0.001)
+
+        input = raw_input("type in enter")
+        if input == "":
+            xcnt += 1
+            plt.clf()
+        if input == "0":
+            break
+        if xcnt == 791:
+            break
+
+
 def draw_heatmap(data, xw, yw):
+
     # make data
     data = np.array(data).T
     x = np.linspace(0, xw, xw)
@@ -88,7 +144,6 @@ def draw_heatmap(data, xw, yw):
     ax = fig.gca(projection='3d')
     surf = ax.plot_surface(X, Y, data, cmap=cm.coolwarm)
     fig.colorbar(surf)
-    plt.show()
 
 
 def main():
