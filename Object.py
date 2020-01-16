@@ -10,9 +10,9 @@ class Object():
         self.id = id
         self.x = []
         self.y = []
-        self. ref = []
+        self.ref = []
 
-    def addNodes(self, xy, lonlat):
-        self.xy = xy
-        self.lonlat = lonlat
-
+    def copy(self):
+        newObject = Object(self.area, self.id)
+        newObject.ref = self.ref
+        return newObject

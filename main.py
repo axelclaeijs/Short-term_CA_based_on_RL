@@ -2,12 +2,13 @@ import OSM_parser_v2 as parser
 import Potential_field as PF
 import Util.Transform as transform
 import Sources.configs.potentialFieldConfig as pfConfig
-import math
+import numpy as np
 import matplotlib.pyplot as plt
-import math
 import Object
+import Util.Utils as util
+import Util.Interpolation_test as interpolation
 
-mapType = 2
+mapType = 1
 
 if __name__ == '__main__':
     if len(parser.sys.argv) != 3:
@@ -146,11 +147,13 @@ if __name__ == '__main__':
 
         id += 1
 
-        object.addNodes((pltX, pltY), (pltLon, pltLat))
+        object.xy = util.merge(pltX, pltY)
+        object.lonlat = [pltLon, pltLat]
         object.ref = nodeRef
         object.x = pltX
         object.y = pltY
-        objects.append(object)
+        newObject = interpolation.extentObjects(object)
+        objects.append(newObject)
 
     print '#river: ', cntRiver
     print '#areas: ', cntArea
@@ -162,8 +165,8 @@ if __name__ == '__main__':
     for object in objects:
             #if not(object.area):
                 plt.figure(1)
-                plt.plot(object.xy[0], object.xy[1])
-                plt.scatter(object.xy[0], object.xy[1])
+                plt.plot(object.x, object.y)
+                plt.scatter(object.x, object.y)
                 plt.scatter(sx, sy, color='blue')
                 axes = plt.gca()
                 axes.set_xlim([min(ox), max(ox)])

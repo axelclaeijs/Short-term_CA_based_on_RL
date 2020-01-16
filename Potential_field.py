@@ -2,18 +2,15 @@ import numpy as np
 import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import axes3d
 from matplotlib import cm
 import Sources.configs.potentialFieldConfig as pfConfig
 import math
-import sys
-import Util.Transform as transform
+from tqdm import tqdm
 
 show_animation = True
 beta = 1
 
 def calc_potential_field(xmin, xmax, ymin, ymax, sx, sy, gx, gy, nodes, reso, rr, objects):
-    count = 0
 
     # scale
     minx = xmin - pfConfig.AREA_WIDTH
@@ -26,11 +23,10 @@ def calc_potential_field(xmin, xmax, ymin, ymax, sx, sy, gx, gy, nodes, reso, rr
     # calc each potential
     pmap = [[0.0 for i in range(yw)] for i in range(xw)]
 
-    for ix in range(xw):
+    for ix in tqdm(range(xw)):
         x = ix * reso + minx
 
         for iy in range(yw):
-            count += 1
             y = iy * reso + miny
             ug = 0  # calc_attractive_potential(x, y, gx, gy)
             uo = calc_repulsive_potential_3(x, y, nodes, rr)
@@ -60,12 +56,12 @@ def calc_repulsive_potential_2(x, y, objects, rr):
     usedNodeList = []
     for object in objects:
         if (object.area):
-            for i,_ in enumerate(object.xy[0]):
-                dq = np.hypot(x - object.xy[0][i], y - object.xy[1][i])
-                if not([object.xy[0][i], object.xy[1][i]] in usedNodeList):
+            for i,_ in enumerate(object.x):
+                dq = np.hypot(x - object.x[i], y - object.y[i])
+                if not([object.x[i], object.y[i]] in usedNodeList):
                     value = 0.5 * pfConfig.Grep * (1.0 / dq - 1.0 / rr) ** 2
                     freptot += value
-                    usedNodeList.append([object.xy[0][i], object.xy[1][i]])
+                    usedNodeList.append([object.x[i], object.y[i]])
 
             cntObj += 1
 
@@ -78,15 +74,15 @@ def calc_repulsive_potential(x, y, objects, rr):
     minid = [-1, -1]    # [id of node, id of object]
     dmin = float("inf")
     for object in objects:
-        for i,_ in enumerate(object.xy[0]):
-            d = np.hypot(x - object.xy[0][i], y - object.xy[1][i])
+        for i,_ in enumerate(object.x):
+            d = np.hypot(x - object.x[i], y - object.y[i])
             if dmin >= d:
                 dmin = d
                 minid = [i, object.id]
 
     if not(minid == [0, 0]):# and not(x == objects[minid[1]].xy[0][minid[0]]) and not(y == objects[minid[1]].xy[1][minid[0]]):
         # calc repulsive potential
-        dq = np.hypot(x - objects[minid[1]].xy[0][minid[0]], y - objects[minid[1]].xy[1][minid[0]])
+        dq = np.hypot(x - objects[minid[1]].x[minid[0]], y - objects[minid[1]].y[minid[0]])
 
         if dq <= rr:
             if dq <= 0.1:
