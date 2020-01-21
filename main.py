@@ -6,8 +6,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import Object
 import Util.Utils as util
-import Util.Interpolation_test as interpolation
+import Util.Interpolation as interpolation
 
+# MapType: 0 (all), 1 (waterways), 2 (areas)
 mapType = 1
 
 if __name__ == '__main__':
@@ -55,8 +56,8 @@ if __name__ == '__main__':
     ymax = transform.latToY(ref_lonmin, ref_latmax)
 
     # x- and y- width
-    xw = transform.distance(ref_lonmin, ref_latmin, ref_lonmax, ref_latmin)
-    yw = transform.distance(ref_lonmin, ref_latmin, ref_lonmin, ref_latmax)
+    xw = transform.distanceXY(xmin, ymin, xmax, ymin)
+    yw = transform.distanceXY(xmin, ymin, xmin, ymax)
 
     # gridSize
     xStep = (xmax - xmin) / xw
@@ -67,34 +68,26 @@ if __name__ == '__main__':
     sx, sy = transform.coordsToMeters(pfConfig.slon, pfConfig.slat, xmin, ymin)
 
     # objects (lon,lat)
-    olon = []
-    olat = []
-
-    # objects (x,y)
-    ox = []
-    oy = []
+    allLon = []
+    allLat = []
 
     # objects all inclusive
     objects = []
 
-    # list of different coords
+    # list of different coords (lon,lat)
     allCoords = []
     waterwayCoords = []
     areaCoords = []
+
+    #list of different coords (X,Y)
+    allX = []
+    allY = []
 
     # summarize objects
     for coord in nodes.coords:
         olat.append(coord[1])
         olon.append(coord[0])
-        x, y = transform.coordsToMeters(coord[0], coord[1], xmin, ymin)
-        ox.append(x)
-        oy.append(y)
-        allCoords.append([x, y])
-
-    print 'max ox: ', max(ox)
-    print 'max oy: ', max(oy)
-    print 'min ox: ', min(ox)
-    print 'min oy: ', min(oy)
+        allCoords.append([coord[0], coord[1]])
 
     print 'xmax - xmin= ', (xmax-xmin)
     print 'ymax - ymin= ', (ymax-ymin)
@@ -124,17 +117,15 @@ if __name__ == '__main__':
                 if ref == n[2]:
                     cntNodes += 1
                     nodeRef.append(ref)
-                    pltLon.append(n[0])
-                    pltLat.append(n[1])
-                    x, y = transform.coordsToMeters(n[0], n[1], xmin, ymin)
-                    pltX.append(x)
-                    pltY.append(y)
+                    lon, lat = n[0], n[1]
+                    pltLon.append(lon)
+                    pltLat.append(lat)
                     if area[0] == area[-1]:
-                        if [x, y] not in areaCoords and [x, y] not in waterwayCoords:
-                            areaCoords.append([x, y])
+                        if [lon, lat] not in areaCoords and [lon, lat] not in waterwayCoords:
+                            areaCoords.append([lon, lat])
                     else:
-                        if [x, y] not in waterwayCoords and [x, y] not in areaCoords:
-                            waterwayCoords.append([x, y])
+                        if [lon, lat] not in waterwayCoords and [lon, lat] not in areaCoords:
+                            waterwayCoords.append([lon, lat])
                     break
 
         if area[0] == area[-1]:
@@ -147,16 +138,38 @@ if __name__ == '__main__':
 
         id += 1
 
-        object.xy = util.merge(pltX, pltY)
-        object.lonlat = [pltLon, pltLat]
         object.ref = nodeRef
-        object.x = pltX
-        object.y = pltY
+        object.lon = pltLon
+        object.lat = pltLat
+
         newObject = interpolation.extentObjects(object)
+
         objects.append(newObject)
 
     print '#river: ', cntRiver
     print '#areas: ', cntArea
+
+    print("-----------------------------------------------------------------------------------------------------------")
+    print(" Calculate (X,Y)-coordinates")
+    print("-----------------------------------------------------------------------------------------------------------")
+
+    for object in objects:
+        ox = []
+        oy = []
+
+        for i in range(len(object.lon)):
+            x, y = transform.coordsToMeters(object.lon[i], object.lat[i], xmin, ymin)
+
+            #CONVERSION X Y (UTM coords?))
+
+            ox.append(x)
+            oy.append(y)
+
+            allX.append(x)
+            allY.append(y)
+
+        object.x = ox
+        object.y = oy
 
     print("-----------------------------------------------------------------------------------------------------------")
     print(" Plot (x,y) and (lon,lat) graph")
@@ -169,49 +182,23 @@ if __name__ == '__main__':
                 plt.scatter(object.x, object.y)
                 plt.scatter(sx, sy, color='blue')
                 axes = plt.gca()
-                axes.set_xlim([min(ox), max(ox)])
-                axes.set_ylim([min(oy), max(oy)])
+                axes.set_xlim([min(allX), max(allX)])
+                axes.set_ylim([min(allY), max(allY)])
 
                 plt.figure(2)
-                plt.plot(object.lonlat[0], object.lonlat[1])
-                plt.scatter(object.lonlat[0], object.lonlat[1])
+                plt.plot(object.lon, object.lat)
+                plt.scatter(object.lon, object.lat)
                 plt.scatter(pfConfig.slon, pfConfig.slat, color='blue')
                 axes = plt.gca()
-                axes.set_xlim([min(olon), max(olon)])
-                axes.set_ylim([min(olat), max(olat)])
-
-    print("-----------------------------------------------------------------------------------------------------------")
-    print(" Cubic spline")
-    print("-----------------------------------------------------------------------------------------------------------")
-
-
+                axes.set_xlim([min(allLon), max(allLon)])
+                axes.set_ylim([min(allLat), max(allLat)])
 
     print("-----------------------------------------------------------------------------------------------------------")
     print(" Producing Potential Field map")
     print("-----------------------------------------------------------------------------------------------------------")
 
-    # # list of interesting obstacles
-    # map_ox = []
-    # map_oy = []
-    #
-    # # extracting interesting obstacles
-    # for i, _ in enumerate(ox):
-    #     if ox[i] <= sx + pfConfig.right and ox[i] >= sx - pfConfig.left and oy[i] <= sy + pfConfig.front and oy[i] >= sy - pfConfig.back:
-    #         map_ox.append(ox[i])
-    #         map_oy.append(oy[i])
-    #
-    # print "> Number of nodes in map: ", len(map_ox)
-
-    # calc potential field
-    if mapType == 0:
-        pmap, xw, yw = PF.calc_potential_field(min(ox), max(ox), min(oy), max(oy), sx, sy, pfConfig.gx, pfConfig.gy,
-                                               waterwayCoords, pfConfig.grid_size, pfConfig.robot_radius, objects)
-    elif mapType == 1:
-        pmap, xw, yw = PF.calc_potential_field(min(ox), max(ox), min(oy), max(oy), sx, sy, pfConfig.gx, pfConfig.gy,
-                                               areaCoords, pfConfig.grid_size, pfConfig.robot_radius, objects)
-    else:
-        pmap, xw, yw = PF.calc_potential_field(min(ox), max(ox), min(oy), max(oy), sx, sy, pfConfig.gx, pfConfig.gy,
-                                               allCoords, pfConfig.grid_size, pfConfig.robot_radius, objects)
+    pmap, xw, yw = PF.calc_potential_field(min(allX), max(allX), min(allY), max(allY), sx, sy, pfConfig.gx, pfConfig.gy,
+                                               pfConfig.grid_size, pfConfig.robot_radius, objects, mapType)
 
     print("-----------------------------------------------------------------------------------------------------------")
     print(" Start potential field drawing")

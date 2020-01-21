@@ -2,15 +2,17 @@ import numpy as np
 import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import cm
 import Sources.configs.potentialFieldConfig as pfConfig
 import math
 from tqdm import tqdm
+from Util.Utils import merge
 
 show_animation = True
 beta = 1
 
-def calc_potential_field(xmin, xmax, ymin, ymax, sx, sy, gx, gy, nodes, reso, rr, objects):
+def calc_potential_field(xmin, xmax, ymin, ymax, sx, sy, gx, gy, reso, rr, objects, mapType):
 
     # scale
     minx = xmin - pfConfig.AREA_WIDTH
@@ -19,6 +21,12 @@ def calc_potential_field(xmin, xmax, ymin, ymax, sx, sy, gx, gy, nodes, reso, rr
     maxy = ymax + pfConfig.AREA_WIDTH
     xw = int(round((maxx - minx) / reso))
     yw = int(round((maxy - miny) / reso))
+
+    # Extract all coordinates
+    coords = []
+    for object in objects:
+        coords.extend(merge(object.x, object.y))
+
 
     # calc each potential
     pmap = [[0.0 for i in range(yw)] for i in range(xw)]
@@ -29,7 +37,7 @@ def calc_potential_field(xmin, xmax, ymin, ymax, sx, sy, gx, gy, nodes, reso, rr
         for iy in range(yw):
             y = iy * reso + miny
             ug = 0  # calc_attractive_potential(x, y, gx, gy)
-            uo = calc_repulsive_potential_3(x, y, nodes, rr)
+            uo = calc_repulsive_potential_3(x, y, coords, rr)
             uf = ug + uo
             pmap[ix][iy] = uf
 
