@@ -1,20 +1,34 @@
-import OSM_parser_v2 as parser
+from Util import OSM_parser as parser
 import Potential_field as PF
 import Util.Transform as transform
 import Sources.configs.potentialFieldConfig as pfConfig
-import numpy as np
 import matplotlib.pyplot as plt
 import Object
-import Util.Utils as util
 import Util.Interpolation as interpolation
+import Util.Utils as util
+from pymongo import MongoClient
+from Sources.database import dbConnection
+from Util.Enums import Maptype, Area
+import Navigation as nav
+import numpy as np
 
-# MapType: 0 (all), 1 (waterways), 2 (areas)
-mapType = 1
+mapType = Maptype.all
+newMap = 'false'
+mapNumber = 4
 
 if __name__ == '__main__':
     if len(parser.sys.argv) != 3:
         print("> Usage: python main3.py <infile> <outfile>")
         parser.sys.exit(-1)
+
+    print("-----------------------------------------------------------------------------------------------------------")
+    print(" Connection to MongoDB client")
+    print("-----------------------------------------------------------------------------------------------------------")
+
+    client = MongoClient("localhost:27017")
+    db = client.admin
+    serverStatusResult = db.command("serverStatus")
+    # pprint(serverStatusResult)
 
     print("-----------------------------------------------------------------------------------------------------------")
     print(" Start parsing OSM file")
@@ -43,6 +57,27 @@ if __name__ == '__main__':
     print(" Start analyzing objects")
     print("-----------------------------------------------------------------------------------------------------------")
 
+    # lat1 = 51.28463
+    # lon1 = 4.389471
+    #
+    # x1 = transform.lonToX(lon1, lat1)
+    # y1 = transform.latToY(lon1, lat1)
+    #
+    # x11, y11 = transform.coordsToMeters(lon1, lat1, 0, 0)
+    #
+    # lat2 = 51.284642
+    # lon2 = 4.403773
+    #
+    # x2 = transform.lonToX(lon2, lat2)
+    # y2 = transform.latToY(lon2, lat2)
+    #
+    # x22, y22 = transform.coordsToMeters(lon2, lat2, 0, 0)
+    # yw = transform.distanceXY(x11, y11, x22, y22)
+    # xw = transform.distanceXY(x1, y1, x2, y2)
+    #
+    #
+    # lonw = transform.distance(lon1, lat1, lon2, lat2)
+
     # ref lon and lat to more usable variables
     ref_lonmin = boundFinder.minlon
     ref_lonmax = boundFinder.maxlon
@@ -55,17 +90,8 @@ if __name__ == '__main__':
     ymin = transform.latToY(ref_lonmin, ref_latmin)
     ymax = transform.latToY(ref_lonmin, ref_latmax)
 
-    # x- and y- width
-    xw = transform.distanceXY(xmin, ymin, xmax, ymin)
-    yw = transform.distanceXY(xmin, ymin, xmin, ymax)
-
-    # gridSize
-    xStep = (xmax - xmin) / xw
-    yStep = (ymax - ymin) / yw
-
-    # ref x and y
-    x, y = transform.coordsToMeters(ref_lonmin, ref_latmin, xmin, ymin)
-    sx, sy = transform.coordsToMeters(pfConfig.slon, pfConfig.slat, xmin, ymin)
+    lonw = transform.distance(ref_lonmin, ref_latmin, ref_lonmax, ref_latmin)
+    latw = transform.distance(ref_lonmin, ref_latmin, ref_lonmin, ref_latmax)
 
     # objects (lon,lat)
     allLon = []
@@ -83,20 +109,24 @@ if __name__ == '__main__':
     allX = []
     allY = []
 
+    # source and goals coords
+    sx = transform.distance(ref_lonmin, ref_latmin, pfConfig.slon, ref_latmin)
+    sy = transform.distance(ref_lonmin, ref_latmin, ref_lonmin, pfConfig.slat)
+
+    gx = transform.distance(ref_lonmin, ref_latmin, pfConfig.glon, ref_latmin)
+    gy = transform.distance(ref_lonmin, ref_latmin, ref_lonmin, pfConfig.glat)
+
     # summarize objects
     for coord in nodes.coords:
-        olat.append(coord[1])
-        olon.append(coord[0])
-        allCoords.append([coord[0], coord[1]])
+        if (ref_latmin <= coord[1] <= ref_latmax) and (ref_lonmin <= coord[0] <= ref_lonmax):
+            allLat.append(coord[1])
+            allLon.append(coord[0])
+            allCoords.append([coord[0], coord[1]])
 
-    print 'xmax - xmin= ', (xmax-xmin)
-    print 'ymax - ymin= ', (ymax-ymin)
-
-    print 'xw: ', xw
-    print 'yw: ', yw
-
-    print 'xStep: ', xStep
-    print 'yStep: ', yStep
+    print 'ref lon min: ', ref_lonmin
+    print 'ref lat min: ', ref_latmin
+    print 'ref lon max: ', ref_lonmax
+    print 'ref lat max: ', ref_latmax
 
     print("-----------------------------------------------------------------------------------------------------------")
     print(" Generate objects")
@@ -114,7 +144,7 @@ if __name__ == '__main__':
         nodeRef = []
         for ref in area:
             for n in nodes.coords:
-                if ref == n[2]:
+                if (ref == n[2]):
                     cntNodes += 1
                     nodeRef.append(ref)
                     lon, lat = n[0], n[1]
@@ -130,11 +160,11 @@ if __name__ == '__main__':
 
         if area[0] == area[-1]:
             cntArea += 1
-            object = Object.Object(1, id)
+            object = Object.Object(Area.boundary, id)
 
         else:
             cntRiver += 1
-            object = Object.Object(0, id)
+            object = Object.Object(Area.waterway, id)
 
         id += 1
 
@@ -143,8 +173,9 @@ if __name__ == '__main__':
         object.lat = pltLat
 
         newObject = interpolation.extentObjects(object)
+        boundObject = interpolation.boundObject(newObject, ref_lonmin, ref_lonmax, ref_latmin, ref_latmax)
 
-        objects.append(newObject)
+        objects.append(boundObject)
 
     print '#river: ', cntRiver
     print '#areas: ', cntArea
@@ -158,9 +189,9 @@ if __name__ == '__main__':
         oy = []
 
         for i in range(len(object.lon)):
-            x, y = transform.coordsToMeters(object.lon[i], object.lat[i], xmin, ymin)
 
-            #CONVERSION X Y (UTM coords?))
+            x = transform.distance(ref_lonmin, ref_latmin, object.lon[i], ref_latmin)
+            y = transform.distance(ref_lonmin, ref_latmin, ref_lonmin, object.lat[i])
 
             ox.append(x)
             oy.append(y)
@@ -170,6 +201,8 @@ if __name__ == '__main__':
 
         object.x = ox
         object.y = oy
+
+        dbConnection.insertObject(client, object)
 
     print("-----------------------------------------------------------------------------------------------------------")
     print(" Plot (x,y) and (lon,lat) graph")
@@ -193,19 +226,40 @@ if __name__ == '__main__':
                 axes.set_xlim([min(allLon), max(allLon)])
                 axes.set_ylim([min(allLat), max(allLat)])
 
+    plt.show()
     print("-----------------------------------------------------------------------------------------------------------")
     print(" Producing Potential Field map")
     print("-----------------------------------------------------------------------------------------------------------")
 
-    pmap, xw, yw = PF.calc_potential_field(min(allX), max(allX), min(allY), max(allY), sx, sy, pfConfig.gx, pfConfig.gy,
-                                               pfConfig.grid_size, pfConfig.robot_radius, objects, mapType)
+    if newMap == 'true':
+        pmap, xw, yw = PF.calc_potential_field(min(allX), max(allX), min(allY), max(allY), pfConfig.grid_size,
+                                           pfConfig.robot_radius, objects, mapType)
+
+        dbConnection.insertMap(client, mapNumber, [pmap, xw, yw])
+
+    else:
+
+        pmap, xw, yw = dbConnection.getMap(client, mapNumber)
+
+    #pmap = np.array(pmap)
+
+    #pmap = util.scale(pmap, 0, 1)
+
+    print("-----------------------------------------------------------------------------------------------------------")
+    print(" Navigation planning")
+    print("-----------------------------------------------------------------------------------------------------------")
+
+    #routeX, routeY = nav.potential_field_planning(sx, sy, gx, gy, pmap, xw, yw, xmin, ymin)
 
     print("-----------------------------------------------------------------------------------------------------------")
     print(" Start potential field drawing")
     print("-----------------------------------------------------------------------------------------------------------")
 
     if PF.show_animation:
-        PF.draw_heatmap(pmap, xw, yw)
+        print
+        PF.draw_3d_heatmap(pmap, xw, yw)
+        #PF.draw_3d_heatmap_interpol(pmap, xw, yw)
         #PF.draw_slice_heatmap(pmap, yw)
+        #PF.draw_2d_heatmap(pmap, routeX, routeY, xw, yw)
 
     plt.show()

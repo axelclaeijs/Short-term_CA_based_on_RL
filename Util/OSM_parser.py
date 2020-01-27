@@ -106,7 +106,7 @@ class BoundsFinder():
 
 def main():
     if len(sys.argv) != 3:
-        print("Usage: python OSM_parser_v2.py <infile> <outfile>")
+        print("Usage: python OSM_parser.py <infile> <outfile>")
         sys.exit(-1)
 
     # go through the ways to find all relevant nodes

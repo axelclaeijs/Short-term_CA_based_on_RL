@@ -55,6 +55,21 @@ def extentObjects(object):
 
     return newObject
 
+def boundObject(object, lonmin, lonmax, latmin, latmax):
+
+    lons = []
+    lats = []
+
+    for n in range(len(object.lon)):
+        if (lonmin <= object.lon[n] <= lonmax) and (latmin <= object.lat[n] <= latmax):
+            lons.append(object.lon[n])
+            lats.append(object.lat[n])
+
+    object.lon = lons
+    object.lat = lats
+
+    return object
+
 def main():
 
     lon1 = [3.7462253, 3.749938, 3.7539657, 3.7545463, 3.7535907, 3.7547027, 3.7543556, 3.7536614, 3.7536998, 3.7503072, 3.7472361, 3.7438261, 3.7417986, 3.7407546, 3.738608, 3.7405009, 3.7427835, 3.7426739, 3.7432193, 3.7462253]

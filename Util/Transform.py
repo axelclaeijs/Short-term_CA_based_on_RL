@@ -34,5 +34,8 @@ def distance(lon1, lat1, lon2, lat2):
     return geodesic(lonlat(*loc1), lonlat(*loc2)).m
 
 def distanceXY(x1, y1, x2, y2):
-    return math.hypot(x2 - x1, y2 - y1)
+    #return math.hypot(x2 - x1, y2 - y1)
+    dist = math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
+    return dist
+
 
