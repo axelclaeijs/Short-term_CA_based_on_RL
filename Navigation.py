@@ -18,14 +18,14 @@ def get_motion_model():
     return motion
 
 
-def potential_field_planning(sx, sy, gx, gy, pmap, xw, yw, minx, miny):
+def potential_field_planning(sx, sy, gx, gy, pmap, minx, miny):
 
     # search path
     d = np.hypot(sx - gx, sy - gy)
-    ix = round((sx - minx) / pfConfig.grid_size)
-    iy = round((sy - miny) / pfConfig.grid_size)
-    gix = round((gx - minx) / pfConfig.grid_size)
-    giy = round((gy - miny) / pfConfig.grid_size)
+    ix = round(sx / pfConfig.grid_size)
+    iy = round(sy / pfConfig.grid_size)
+    gix = round(gx / pfConfig.grid_size)
+    giy = round(gy / pfConfig.grid_size)
 
     rx, ry = [sx], [sy]
     motion = get_motion_model()
@@ -45,10 +45,11 @@ def potential_field_planning(sx, sy, gx, gy, pmap, xw, yw, minx, miny):
                 miniy = iny
         ix = minix
         iy = miniy
-        xp = ix * pfConfig.grid_size + minx
-        yp = iy * pfConfig.grid_size + miny
-        print (xp, yp)
+        xp = ix * pfConfig.grid_size
+        yp = iy * pfConfig.grid_size
+        #print (xp, yp)
         d = np.hypot(gx - xp, gy - yp)
+        print d
         rx.append(xp)
         ry.append(yp)
 

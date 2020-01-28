@@ -28,17 +28,20 @@ def insertObject(dbClient, object):
     result = db.objects.insert_one(document)
 
 
-def insertMap(dbClient, mapNumber, map):
+def insertMap(dbClient, mapNumber, map, description):
     client = dbClient
     db = client.map
 
-    pmap = map[0]
-    xw = map[1]
-    yw = map[2]
+    repmap = map[0]
+    attrmap = map[1]
+    xw = map[2]
+    yw = map[3]
 
     document = {
+        'description': description,
         'mapNumber': mapNumber,
-        'pmap': pmap,
+        'repmap': repmap,
+        'attrmap': attrmap,
         'xw': xw,
         'yw': yw
     }
@@ -51,9 +54,10 @@ def getMap(dbClient, mapNumer):
 
     pfMap = db.pf.find_one({"mapNumber": mapNumer})
 
-    pmap = pfMap[u'pmap']
+    repmap = pfMap[u'repmap']
+    attrmap = pfMap[u'attrmap']
     xw = pfMap[u'xw']
     yw = pfMap[u'yw']
 
-    return pmap, xw, yw
+    return repmap, attrmap, xw, yw
 

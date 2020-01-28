@@ -8,3 +8,7 @@ class Maptype(Enum):
     waterways = 0
     boundaries = 1
     all = 2
+
+class FieldType(Enum):
+    repulsive = 0
+    attractive = 1

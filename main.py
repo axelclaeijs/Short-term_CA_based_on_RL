@@ -8,13 +8,19 @@ import Util.Interpolation as interpolation
 import Util.Utils as util
 from pymongo import MongoClient
 from Sources.database import dbConnection
-from Util.Enums import Maptype, Area
+from Util.Enums import Maptype, Area, FieldType
 import Navigation as nav
 import numpy as np
 
 mapType = Maptype.all
-newMap = 'false'
-mapNumber = 4
+newMap = 0
+insertDB = 0
+mapNumber = 8
+plotCoords = 0
+plot2DHeatmap = 1
+plot3DHeatmap = 1
+plotSlice = 0
+description = 'old_rep500_attr2_rr10'
 
 if __name__ == '__main__':
     if len(parser.sys.argv) != 3:
@@ -208,48 +214,54 @@ if __name__ == '__main__':
     print(" Plot (x,y) and (lon,lat) graph")
     print("-----------------------------------------------------------------------------------------------------------")
 
-    for object in objects:
-            #if not(object.area):
-                plt.figure(1)
-                plt.plot(object.x, object.y)
-                plt.scatter(object.x, object.y)
-                plt.scatter(sx, sy, color='blue')
-                axes = plt.gca()
-                axes.set_xlim([min(allX), max(allX)])
-                axes.set_ylim([min(allY), max(allY)])
+    if plotCoords:
+        for object in objects:
+                #if not(object.area):
+                    plt.figure(1)
+                    plt.plot(object.x, object.y)
+                    plt.scatter(object.x, object.y)
+                    plt.scatter(sx, sy, color='blue')
+                    axes = plt.gca()
+                    axes.set_xlim([min(allX), max(allX)])
+                    axes.set_ylim([min(allY), max(allY)])
 
-                plt.figure(2)
-                plt.plot(object.lon, object.lat)
-                plt.scatter(object.lon, object.lat)
-                plt.scatter(pfConfig.slon, pfConfig.slat, color='blue')
-                axes = plt.gca()
-                axes.set_xlim([min(allLon), max(allLon)])
-                axes.set_ylim([min(allLat), max(allLat)])
+                    plt.figure(2)
+                    plt.plot(object.lon, object.lat)
+                    plt.scatter(object.lon, object.lat)
+                    plt.scatter(pfConfig.slon, pfConfig.slat, color='blue')
+                    axes = plt.gca()
+                    axes.set_xlim([min(allLon), max(allLon)])
+                    axes.set_ylim([min(allLat), max(allLat)])
 
-    plt.show()
     print("-----------------------------------------------------------------------------------------------------------")
     print(" Producing Potential Field map")
     print("-----------------------------------------------------------------------------------------------------------")
 
-    if newMap == 'true':
-        pmap, xw, yw = PF.calc_potential_field(min(allX), max(allX), min(allY), max(allY), pfConfig.grid_size,
-                                           pfConfig.robot_radius, objects, mapType)
+    if newMap:
+        repmap, xw, yw = PF.calc_potential_field(min(allX), max(allX), min(allY), max(allY), pfConfig.grid_size,
+                                           pfConfig.robot_radius, objects, gx, gy, mapType, FieldType.repulsive)
 
-        dbConnection.insertMap(client, mapNumber, [pmap, xw, yw])
+        attrmap, xw, yw = PF.calc_potential_field(min(allX), max(allX), min(allY), max(allY), pfConfig.grid_size, pfConfig.robot_radius, objects, gx, gy, mapType, FieldType.attractive)
+
+        if insertDB:
+            dbConnection.insertMap(client, mapNumber, [repmap, attrmap, xw, yw], description)
 
     else:
 
-        pmap, xw, yw = dbConnection.getMap(client, mapNumber)
+        repmap, attrmap, xw, yw = dbConnection.getMap(client, mapNumber)
 
-    #pmap = np.array(pmap)
-
-    #pmap = util.scale(pmap, 0, 1)
+    repmap = np.array(repmap)
+    repmap = PF.filter(repmap, xw, yw)
+    repmap[repmap < -0.5] = -0.5
+    attrmap = np.array(attrmap)
+    attrmap = np.interp(attrmap, (min(map(min, attrmap)), max(map(max, attrmap))), (0, 1))
+    pmap = repmap+attrmap
 
     print("-----------------------------------------------------------------------------------------------------------")
     print(" Navigation planning")
     print("-----------------------------------------------------------------------------------------------------------")
 
-    #routeX, routeY = nav.potential_field_planning(sx, sy, gx, gy, pmap, xw, yw, xmin, ymin)
+    routeX, routeY = nav.potential_field_planning(sx, sy, gx, gy, pmap, xmin, ymin)
 
     print("-----------------------------------------------------------------------------------------------------------")
     print(" Start potential field drawing")
@@ -257,9 +269,18 @@ if __name__ == '__main__':
 
     if PF.show_animation:
         print
-        PF.draw_3d_heatmap(pmap, xw, yw)
-        #PF.draw_3d_heatmap_interpol(pmap, xw, yw)
-        #PF.draw_slice_heatmap(pmap, yw)
-        #PF.draw_2d_heatmap(pmap, routeX, routeY, xw, yw)
+        if plot3DHeatmap:
+            PF.draw_3d_heatmap(repmap, xw, yw)
+            PF.draw_3d_heatmap(attrmap, xw, yw)
+            PF.draw_3d_heatmap(pmap, xw, yw)
+            #PF.draw_3d_heatmap_interpol(pmap, xw, yw)
+
+        if plot2DHeatmap:
+            #PF.draw_2d_heatmap(pmap, 0, 0, xw, yw)
+            #PF.draw_2d(repmap, xw, yw)
+            PF.draw_2d_heatmap(pmap, routeX, routeY, xw, yw)
+
+        if plotSlice:
+            PF.draw_slice_heatmap(repmap, yw)
 
     plt.show()
