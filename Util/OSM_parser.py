@@ -85,6 +85,8 @@ class WaterwayCollector2(o.SimpleHandler):
             way.append(n.ref)
         self.areas.append(way)
 
+
+# Find range of map
 class BoundsFinder():
 
     def __init__(self, file):
@@ -104,6 +106,8 @@ class BoundsFinder():
         self.maxlon = float(attrib['maxlon'])
         self.maxlat = float(attrib['maxlat'])
 
+
+# Testcases
 def main():
     if len(sys.argv) != 3:
         print("Usage: python OSM_parser.py <infile> <outfile>")

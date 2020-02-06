@@ -5,18 +5,19 @@ import Sources.configs.potentialFieldConfig as pfConfig
 import matplotlib.pyplot as plt
 import Object
 import Util.Interpolation as interpolation
-import Util.Utils as util
 from pymongo import MongoClient
 from Sources.database import dbConnection
 from Util.Enums import Maptype, Area, FieldType
 import Navigation as nav
 import numpy as np
+import fetchObjects
 
 mapType = Maptype.all
-newMap = 0
+newPFMap = 0
+newOSMMap = 0
 insertDB = 0
 mapNumber = 8
-plotCoords = 0
+plotCoords = 1
 plot2DHeatmap = 1
 plot3DHeatmap = 1
 plotSlice = 0
@@ -37,58 +38,20 @@ if __name__ == '__main__':
     # pprint(serverStatusResult)
 
     print("-----------------------------------------------------------------------------------------------------------")
-    print(" Start parsing OSM file")
+    print(" FetchObjects")
     print("-----------------------------------------------------------------------------------------------------------")
 
-    # go through the ways to find all relevant nodes
-    # ways = parser.WaterwayFilter()
-    # ways.apply_file(parser.sys.argv[1])
+    if newOSMMap:
+        objects, allX, allY, allLon, allLat, minlon, maxlon, minlat, maxlat = fetchObjects.fetchNewObjects(client)
 
-    # go through the file again and write out the data
-    # writer = parser.o.SimpleWriter(parser.sys.argv[2])
-    # parser.WaterwayWriter(writer, ways.nodes).apply_file(parser.sys.argv[1])
-    #
-    # writer.close()
-
-    nodes = parser.WaterwayCollector2()
-    nodes.apply_file(parser.sys.argv[2])
-
-    boundFinder = parser.BoundsFinder(parser.sys.argv[1])
-    boundFinder.find()
-
-    print ("> Number of nodes: ", len(nodes.coords))
-    print ("> Number of areas: ", len(nodes.areas))
-
-    print("-----------------------------------------------------------------------------------------------------------")
-    print(" Start analyzing objects")
-    print("-----------------------------------------------------------------------------------------------------------")
-
-    # lat1 = 51.28463
-    # lon1 = 4.389471
-    #
-    # x1 = transform.lonToX(lon1, lat1)
-    # y1 = transform.latToY(lon1, lat1)
-    #
-    # x11, y11 = transform.coordsToMeters(lon1, lat1, 0, 0)
-    #
-    # lat2 = 51.284642
-    # lon2 = 4.403773
-    #
-    # x2 = transform.lonToX(lon2, lat2)
-    # y2 = transform.latToY(lon2, lat2)
-    #
-    # x22, y22 = transform.coordsToMeters(lon2, lat2, 0, 0)
-    # yw = transform.distanceXY(x11, y11, x22, y22)
-    # xw = transform.distanceXY(x1, y1, x2, y2)
-    #
-    #
-    # lonw = transform.distance(lon1, lat1, lon2, lat2)
+    else:
+        objects, allX, allY, allLon, allLat, minlon, maxlon, minlat, maxlat = fetchObjects.fetchDBObjects(client)
 
     # ref lon and lat to more usable variables
-    ref_lonmin = boundFinder.minlon
-    ref_lonmax = boundFinder.maxlon
-    ref_latmin = boundFinder.minlat
-    ref_latmax = boundFinder.maxlat
+    ref_lonmin = minlon
+    ref_lonmax = maxlon
+    ref_latmin = minlat
+    ref_latmax = maxlat
 
     # absolute (lon,lat) to (x,y) conversion
     xmin = transform.lonToX(ref_lonmin, ref_latmin)
@@ -99,116 +62,12 @@ if __name__ == '__main__':
     lonw = transform.distance(ref_lonmin, ref_latmin, ref_lonmax, ref_latmin)
     latw = transform.distance(ref_lonmin, ref_latmin, ref_lonmin, ref_latmax)
 
-    # objects (lon,lat)
-    allLon = []
-    allLat = []
-
-    # objects all inclusive
-    objects = []
-
-    # list of different coords (lon,lat)
-    allCoords = []
-    waterwayCoords = []
-    areaCoords = []
-
-    #list of different coords (X,Y)
-    allX = []
-    allY = []
-
     # source and goals coords
     sx = transform.distance(ref_lonmin, ref_latmin, pfConfig.slon, ref_latmin)
     sy = transform.distance(ref_lonmin, ref_latmin, ref_lonmin, pfConfig.slat)
 
     gx = transform.distance(ref_lonmin, ref_latmin, pfConfig.glon, ref_latmin)
     gy = transform.distance(ref_lonmin, ref_latmin, ref_lonmin, pfConfig.glat)
-
-    # summarize objects
-    for coord in nodes.coords:
-        if (ref_latmin <= coord[1] <= ref_latmax) and (ref_lonmin <= coord[0] <= ref_lonmax):
-            allLat.append(coord[1])
-            allLon.append(coord[0])
-            allCoords.append([coord[0], coord[1]])
-
-    print 'ref lon min: ', ref_lonmin
-    print 'ref lat min: ', ref_latmin
-    print 'ref lon max: ', ref_lonmax
-    print 'ref lat max: ', ref_latmax
-
-    print("-----------------------------------------------------------------------------------------------------------")
-    print(" Generate objects")
-    print("-----------------------------------------------------------------------------------------------------------")
-    cntRiver = 0
-    cntArea = 0
-    id = 0
-
-    for area in nodes.areas:
-        cntNodes = 0
-        pltLon = []
-        pltLat = []
-        pltX = []
-        pltY = []
-        nodeRef = []
-        for ref in area:
-            for n in nodes.coords:
-                if (ref == n[2]):
-                    cntNodes += 1
-                    nodeRef.append(ref)
-                    lon, lat = n[0], n[1]
-                    pltLon.append(lon)
-                    pltLat.append(lat)
-                    if area[0] == area[-1]:
-                        if [lon, lat] not in areaCoords and [lon, lat] not in waterwayCoords:
-                            areaCoords.append([lon, lat])
-                    else:
-                        if [lon, lat] not in waterwayCoords and [lon, lat] not in areaCoords:
-                            waterwayCoords.append([lon, lat])
-                    break
-
-        if area[0] == area[-1]:
-            cntArea += 1
-            object = Object.Object(Area.boundary, id)
-
-        else:
-            cntRiver += 1
-            object = Object.Object(Area.waterway, id)
-
-        id += 1
-
-        object.ref = nodeRef
-        object.lon = pltLon
-        object.lat = pltLat
-
-        newObject = interpolation.extentObjects(object)
-        boundObject = interpolation.boundObject(newObject, ref_lonmin, ref_lonmax, ref_latmin, ref_latmax)
-
-        objects.append(boundObject)
-
-    print '#river: ', cntRiver
-    print '#areas: ', cntArea
-
-    print("-----------------------------------------------------------------------------------------------------------")
-    print(" Calculate (X,Y)-coordinates")
-    print("-----------------------------------------------------------------------------------------------------------")
-
-    for object in objects:
-        ox = []
-        oy = []
-
-        for i in range(len(object.lon)):
-
-            x = transform.distance(ref_lonmin, ref_latmin, object.lon[i], ref_latmin)
-            y = transform.distance(ref_lonmin, ref_latmin, ref_lonmin, object.lat[i])
-
-            ox.append(x)
-            oy.append(y)
-
-            allX.append(x)
-            allY.append(y)
-
-        object.x = ox
-        object.y = oy
-
-        dbConnection.insertObject(client, object)
 
     print("-----------------------------------------------------------------------------------------------------------")
     print(" Plot (x,y) and (lon,lat) graph")
@@ -234,34 +93,45 @@ if __name__ == '__main__':
                     axes.set_ylim([min(allLat), max(allLat)])
 
     print("-----------------------------------------------------------------------------------------------------------")
-    print(" Producing Potential Field map")
+    print(" Producing Global Repulsive Potential Field map")
     print("-----------------------------------------------------------------------------------------------------------")
 
-    if newMap:
-        repmap, xw, yw = PF.calc_potential_field(min(allX), max(allX), min(allY), max(allY), pfConfig.grid_size,
+    if newPFMap:
+        repmapG, xw, yw = PF.calc_potential_field(min(allX), max(allX), min(allY), max(allY), pfConfig.grid_size,
                                            pfConfig.robot_radius, objects, gx, gy, mapType, FieldType.repulsive)
 
-        attrmap, xw, yw = PF.calc_potential_field(min(allX), max(allX), min(allY), max(allY), pfConfig.grid_size, pfConfig.robot_radius, objects, gx, gy, mapType, FieldType.attractive)
+        attrmap, xw, yw = PF.calc_potential_field(min(allX), max(allX), min(allY), max(allY), pfConfig.grid_size,
+                                                  pfConfig.robot_radius, objects, gx, gy, mapType, FieldType.attractive)
 
         if insertDB:
-            dbConnection.insertMap(client, mapNumber, [repmap, attrmap, xw, yw], description)
+            dbConnection.insertRepG(client, mapNumber, [repmapG.tolist(), xw, yw], description)   # INSERT DATABASE
 
     else:
 
-        repmap, attrmap, xw, yw = dbConnection.getMap(client, mapNumber)
+        repmapG, attrmap, xw, yw = dbConnection.getRepMap(client, mapNumber)   # CALL DATABASE
 
-    repmap = np.array(repmap)
-    repmap = PF.filter(repmap, xw, yw)
-    repmap[repmap < -0.5] = -0.5
+    repmap = np.array(repmapG)
     attrmap = np.array(attrmap)
-    attrmap = np.interp(attrmap, (min(map(min, attrmap)), max(map(max, attrmap))), (0, 1))
-    pmap = repmap+attrmap
+    pmap = repmap + attrmap
 
     print("-----------------------------------------------------------------------------------------------------------")
     print(" Navigation planning")
     print("-----------------------------------------------------------------------------------------------------------")
 
     routeX, routeY = nav.potential_field_planning(sx, sy, gx, gy, pmap, xmin, ymin)
+
+    print("-----------------------------------------------------------------------------------------------------------")
+    print(" Producing Local Repulsive Potential Field map")
+    print("-----------------------------------------------------------------------------------------------------------")
+
+    # shipPath = Object.Object(Area.trajectory, 'null')
+    # shipPath.x, shipPath.y = [sx, sy]
+    #
+    # repmapL, xw, yw = PF.calc_potential_field(min(allX), max(allX), min(allY), max(allY), pfConfig.grid_size,
+    #                                           pfConfig.robot_radius, shipPath, gx, gy, mapType, FieldType.repulsive)
+    #
+    # ship = [xw, yw, attrmap, repmapL, [routeX, routeY]]
+    # dbConnection.insertShip(client, ship, pfConfig.shipID)
 
     print("-----------------------------------------------------------------------------------------------------------")
     print(" Start potential field drawing")
@@ -273,12 +143,10 @@ if __name__ == '__main__':
             PF.draw_3d_heatmap(repmap, xw, yw)
             PF.draw_3d_heatmap(attrmap, xw, yw)
             PF.draw_3d_heatmap(pmap, xw, yw)
-            #PF.draw_3d_heatmap_interpol(pmap, xw, yw)
 
         if plot2DHeatmap:
             #PF.draw_2d_heatmap(pmap, 0, 0, xw, yw)
-            #PF.draw_2d(repmap, xw, yw)
-            PF.draw_2d_heatmap(pmap, routeX, routeY, xw, yw)
+            PF.draw_2d_heatmap(pmap, np.array(routeX)/pfConfig.grid_size, np.array(routeY)/pfConfig.grid_size, xw, yw)
 
         if plotSlice:
             PF.draw_slice_heatmap(repmap, yw)

@@ -1,5 +1,5 @@
 
-# merge two lists into list of tuples
+# Merge two lists into list of tuples
 # Source: https://www.geeksforgeeks.org/python-merge-two-lists-into-list-of-tuples/
 def merge(list1, list2):
 
@@ -7,7 +7,7 @@ def merge(list1, list2):
 
     return merged_list
 
-# unpack list of tuples into two lists
+# Unpack list of tuples into two lists
 def unpack(tupleList):
 
     list1, list2 = zip(*tupleList)
@@ -16,6 +16,7 @@ def unpack(tupleList):
 
     return list1, list2
 
+# Set range of array values
 def scale(X, x_min, x_max):
 
     nom = (X - X.min(axis=0))*(x_max - x_min)

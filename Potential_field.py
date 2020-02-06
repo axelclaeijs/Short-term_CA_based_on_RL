@@ -5,19 +5,26 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import axes3d, Axes3D
 from matplotlib import cm
 import Sources.configs.potentialFieldConfig as pfConfig
-import math
 from tqdm import tqdm
 from Util.Utils import merge, unpack
 from Util.Enums import Maptype, Area, FieldType
-from scipy import interpolate
-import Util.Utils as util
 import scipy as sp
 import scipy.ndimage
 
 show_animation = True
 beta = 1
 
+# Apply Gaussian filter to map
+def filter(pmap, xw, yw):
 
+    sigma_y = 5
+    sigma_x = 5
+
+    # Apply gaussian filter
+    sigma = [sigma_y, sigma_x]
+    return sp.ndimage.filters.gaussian_filter(pmap, sigma, mode='constant')
+
+# Calculate the attractive or repulsive field
 def calc_potential_field(xmin, xmax, ymin, ymax, reso, rr, objects, gx, gy, mapType, fieldType):
 
     # scale
@@ -51,24 +58,24 @@ def calc_potential_field(xmin, xmax, ymin, ymax, reso, rr, objects, gx, gy, mapT
             if fieldType == FieldType.attractive:
                 p = calc_attractive_potential(x, y, gx, gy)
             if fieldType == FieldType.repulsive:
-                p = calc_repulsive_potential_1(x, y, coords, rr)
+                p = calc_repulsive_potential(x, y, coords, rr)
                 if p > 10:
                     p = 10
                 p = -p
 
             pmap[ix][iy] = p
 
+    pmap = np.array(pmap)
+
+    if fieldType == FieldType.repulsive:
+        pmap = filter(pmap, xw, yw)
+        pmap[pmap < -0.5] = -0.5
+
+    if fieldType == FieldType.attractive:
+        pmap = np.array(pmap)
+        pmap = np.interp(pmap, (min(map(min, pmap)), max(map(max, pmap))), (0, 1))
+
     return pmap, xw, yw
-
-
-def filter(pmap, xw, yw):
-
-    sigma_y = 5
-    sigma_x = 5
-
-    # Apply gaussian filter
-    sigma = [sigma_y, sigma_x]
-    return sp.ndimage.filters.gaussian_filter(pmap, sigma, mode='constant')
 
 
 def calc_attractive_potential(x, y, gx, gy):
@@ -76,16 +83,6 @@ def calc_attractive_potential(x, y, gx, gy):
 
 
 def calc_repulsive_potential(x, y, nodes, rr):
-    freptot = 0
-    for node in nodes:
-        dq = np.hypot(x - node[0], y - node[1])
-        value = 0.5 * pfConfig.Grep * (1.0 / dq - 1.0 / rr) ** 2
-        freptot += value
-
-    return -math.log(freptot)
-
-
-def calc_repulsive_potential_1(x, y, nodes, rr):
     ox, oy = unpack(nodes)
 
     # search nearest obstacle
@@ -109,6 +106,7 @@ def calc_repulsive_potential_1(x, y, nodes, rr):
         return 0.0
 
 
+# Draw slice of map in Y-direction
 def draw_slice_heatmap(data, xw):
     xcnt = 0
 
@@ -136,14 +134,8 @@ def draw_slice_heatmap(data, xw):
             break
 
 
+# Plot 3D heatmap of map
 def draw_3d_heatmap(data, xw, yw):
-
-    #mean = 5
-    #newData = np.clip(data, mean, max(map(max, data)))
-
-    #newData = 10**np.array(data)
-
-    # newData= util.scale(newData, 0, 1)
 
     # make data
     newData = np.array(data).T
@@ -157,25 +149,8 @@ def draw_3d_heatmap(data, xw, yw):
     surf = ax.plot_surface(X, Y, newData, cmap=cm.Greys, linewidths=0)
     fig.colorbar(surf)
 
-def draw_3d_heatmap_interpol(data, xw, yw):
 
-    X, Y = np.mgrid[0:xw/2, 0:yw/2]
-    X2, Y2 = np.mgrid[xw/2:xw, yw/2:yw]
-    xnew, ynew = np.mgrid[0:xw, 0:yw]
-    tck = interpolate.bisplrep(X, Y, data, s=0)
-    tck2 = interpolate.bisplrep(X2, Y2, data, s=0)
-    znew = interpolate.bisplev(xnew[:, 0], ynew[0, :], tck)
-
-    fig = plt.figure(figsize=(12, 12))
-    ax = fig.gca(projection='3d')
-    ax.plot_surface(X, Y, data, cmap='summer', rstride=1, cstride=1, alpha=None)
-
-
-    fig = plt.figure(figsize=(12, 12))
-    ax = fig.gca(projection='3d')
-    ax.plot_surface(xnew, ynew, znew, cmap='summer', rstride=1, cstride=1, alpha=None, antialiased=True)
-
-
+# Plot 2D heatmap of map
 def draw_2d_heatmap(data, routeX, routeY, xw, yw):
 
     data = np.array(data)
@@ -186,28 +161,8 @@ def draw_2d_heatmap(data, routeX, routeY, xw, yw):
     plt.plot(routeX, routeY)
     plt.colorbar()
 
-def draw_2d(data, xw, yw):
 
-    x, y = np.mgrid[0:xw, 0:yw]
-    sigma_y = 5
-    sigma_x = 5
-
-    plt.figure()
-    plt.imshow(data, interpolation='nearest')
-    plt.xlabel("$x$")
-    plt.ylabel("$y$")
-
-    # Apply gaussian filter
-    sigma = [sigma_y, sigma_x]
-    y = sp.ndimage.filters.gaussian_filter(data, sigma, mode='constant')
-
-    # Display filtered array
-    plt.imshow(y, cmap='Blues', interpolation='nearest')
-    plt.xlabel("$x$")
-    plt.ylabel("$y$")
-    plt.title("$\sigma_x = " + str(sigma_x) + "\quad \sigma_y = " + str(sigma_y) + "$")
-
-
+# Testcases
 def main():
     print("potential_field_planning start")
 

@@ -79,13 +79,22 @@ db=client.map
 #db.pf.update_one({"_id": ObjectId("5e27573f13a4340b3ae180c1")}, {"$set": {"mapNumber": 0}})
 
 ## 2D heatmap
-pfMap = db.pf.find_one({"mapNumber": 0})
+# pfMap = db.pf.find_one({"mapNumber": 0})
+#
+# pmap = pfMap[u'pmap']
+# xw = pfMap[u'xw']
+# yw = pfMap[u'yw']
+#
+# pmap = np.array(pmap)
+#
+# plt.imshow(pmap, cmap='hot', interpolation='nearest')
+# plt.show()
 
-pmap = pfMap[u'pmap']
-xw = pfMap[u'xw']
-yw = pfMap[u'yw']
+## TEST GETOBJECT
+objectID = 0
+db = client.map
 
-pmap = np.array(pmap)
 
-plt.imshow(pmap, cmap='hot', interpolation='nearest')
-plt.show()
+pfMap = db.objects.find_one({"id": objectID})
+
+print ""

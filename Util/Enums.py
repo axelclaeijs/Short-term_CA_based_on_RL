@@ -3,6 +3,7 @@ from enum import Enum
 class Area(Enum):
     waterway = 0
     boundary = 1
+    trajectory = 2
 
 class Maptype(Enum):
     waterways = 0
