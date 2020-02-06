@@ -1,15 +1,27 @@
-import OSM_parser_v2 as parser
+from Util import OSM_parser as parser
 import Potential_field as PF
 import Util.Transform as transform
 import Sources.configs.potentialFieldConfig as pfConfig
-import numpy as np
 import matplotlib.pyplot as plt
 import Object
-import Util.Utils as util
 import Util.Interpolation as interpolation
+from pymongo import MongoClient
+from Sources.database import dbConnection
+from Util.Enums import Maptype, Area, FieldType
+import Navigation as nav
+import numpy as np
+import fetchObjects
 
-# MapType: 0 (all), 1 (waterways), 2 (areas)
-mapType = 1
+mapType = Maptype.all
+newPFMap = 0
+newOSMMap = 0
+insertDB = 0
+mapNumber = 8
+plotCoords = 1
+plot2DHeatmap = 1
+plot3DHeatmap = 1
+plotSlice = 0
+description = 'old_rep500_attr2_rr10'
 
 if __name__ == '__main__':
     if len(parser.sys.argv) != 3:
@@ -17,37 +29,29 @@ if __name__ == '__main__':
         parser.sys.exit(-1)
 
     print("-----------------------------------------------------------------------------------------------------------")
-    print(" Start parsing OSM file")
+    print(" Connection to MongoDB client")
     print("-----------------------------------------------------------------------------------------------------------")
 
-    # go through the ways to find all relevant nodes
-    # ways = parser.WaterwayFilter()
-    # ways.apply_file(parser.sys.argv[1])
-
-    # go through the file again and write out the data
-    # writer = parser.o.SimpleWriter(parser.sys.argv[2])
-    # parser.WaterwayWriter(writer, ways.nodes).apply_file(parser.sys.argv[1])
-    #
-    # writer.close()
-
-    nodes = parser.WaterwayCollector2()
-    nodes.apply_file(parser.sys.argv[2])
-
-    boundFinder = parser.BoundsFinder(parser.sys.argv[1])
-    boundFinder.find()
-
-    print ("> Number of nodes: ", len(nodes.coords))
-    print ("> Number of areas: ", len(nodes.areas))
+    client = MongoClient("localhost:27017")
+    db = client.admin
+    serverStatusResult = db.command("serverStatus")
+    # pprint(serverStatusResult)
 
     print("-----------------------------------------------------------------------------------------------------------")
-    print(" Start analyzing objects")
+    print(" FetchObjects")
     print("-----------------------------------------------------------------------------------------------------------")
+
+    if newOSMMap:
+        objects, allX, allY, allLon, allLat, minlon, maxlon, minlat, maxlat = fetchObjects.fetchNewObjects(client)
+
+    else:
+        objects, allX, allY, allLon, allLat, minlon, maxlon, minlat, maxlat = fetchObjects.fetchDBObjects(client)
 
     # ref lon and lat to more usable variables
-    ref_lonmin = boundFinder.minlon
-    ref_lonmax = boundFinder.maxlon
-    ref_latmin = boundFinder.minlat
-    ref_latmax = boundFinder.maxlat
+    ref_lonmin = minlon
+    ref_lonmax = maxlon
+    ref_latmin = minlat
+    ref_latmax = maxlat
 
     # absolute (lon,lat) to (x,y) conversion
     xmin = transform.lonToX(ref_lonmin, ref_latmin)
@@ -55,157 +59,96 @@ if __name__ == '__main__':
     ymin = transform.latToY(ref_lonmin, ref_latmin)
     ymax = transform.latToY(ref_lonmin, ref_latmax)
 
-    # x- and y- width
-    xw = transform.distanceXY(xmin, ymin, xmax, ymin)
-    yw = transform.distanceXY(xmin, ymin, xmin, ymax)
+    lonw = transform.distance(ref_lonmin, ref_latmin, ref_lonmax, ref_latmin)
+    latw = transform.distance(ref_lonmin, ref_latmin, ref_lonmin, ref_latmax)
 
-    # gridSize
-    xStep = (xmax - xmin) / xw
-    yStep = (ymax - ymin) / yw
+    # source and goals coords
+    sx = transform.distance(ref_lonmin, ref_latmin, pfConfig.slon, ref_latmin)
+    sy = transform.distance(ref_lonmin, ref_latmin, ref_lonmin, pfConfig.slat)
 
-    # ref x and y
-    x, y = transform.coordsToMeters(ref_lonmin, ref_latmin, xmin, ymin)
-    sx, sy = transform.coordsToMeters(pfConfig.slon, pfConfig.slat, xmin, ymin)
-
-    # objects (lon,lat)
-    allLon = []
-    allLat = []
-
-    # objects all inclusive
-    objects = []
-
-    # list of different coords (lon,lat)
-    allCoords = []
-    waterwayCoords = []
-    areaCoords = []
-
-    #list of different coords (X,Y)
-    allX = []
-    allY = []
-
-    # summarize objects
-    for coord in nodes.coords:
-        olat.append(coord[1])
-        olon.append(coord[0])
-        allCoords.append([coord[0], coord[1]])
-
-    print 'xmax - xmin= ', (xmax-xmin)
-    print 'ymax - ymin= ', (ymax-ymin)
-
-    print 'xw: ', xw
-    print 'yw: ', yw
-
-    print 'xStep: ', xStep
-    print 'yStep: ', yStep
-
-    print("-----------------------------------------------------------------------------------------------------------")
-    print(" Generate objects")
-    print("-----------------------------------------------------------------------------------------------------------")
-    cntRiver = 0
-    cntArea = 0
-    id = 0
-
-    for area in nodes.areas:
-        cntNodes = 0
-        pltLon = []
-        pltLat = []
-        pltX = []
-        pltY = []
-        nodeRef = []
-        for ref in area:
-            for n in nodes.coords:
-                if ref == n[2]:
-                    cntNodes += 1
-                    nodeRef.append(ref)
-                    lon, lat = n[0], n[1]
-                    pltLon.append(lon)
-                    pltLat.append(lat)
-                    if area[0] == area[-1]:
-                        if [lon, lat] not in areaCoords and [lon, lat] not in waterwayCoords:
-                            areaCoords.append([lon, lat])
-                    else:
-                        if [lon, lat] not in waterwayCoords and [lon, lat] not in areaCoords:
-                            waterwayCoords.append([lon, lat])
-                    break
-
-        if area[0] == area[-1]:
-            cntArea += 1
-            object = Object.Object(1, id)
-
-        else:
-            cntRiver += 1
-            object = Object.Object(0, id)
-
-        id += 1
-
-        object.ref = nodeRef
-        object.lon = pltLon
-        object.lat = pltLat
-
-        newObject = interpolation.extentObjects(object)
-
-        objects.append(newObject)
-
-    print '#river: ', cntRiver
-    print '#areas: ', cntArea
-
-    print("-----------------------------------------------------------------------------------------------------------")
-    print(" Calculate (X,Y)-coordinates")
-    print("-----------------------------------------------------------------------------------------------------------")
-
-    for object in objects:
-        ox = []
-        oy = []
-
-        for i in range(len(object.lon)):
-            x, y = transform.coordsToMeters(object.lon[i], object.lat[i], xmin, ymin)
-
-            #CONVERSION X Y (UTM coords?))
-
-            ox.append(x)
-            oy.append(y)
-
-            allX.append(x)
-            allY.append(y)
-
-        object.x = ox
-        object.y = oy
+    gx = transform.distance(ref_lonmin, ref_latmin, pfConfig.glon, ref_latmin)
+    gy = transform.distance(ref_lonmin, ref_latmin, ref_lonmin, pfConfig.glat)
 
     print("-----------------------------------------------------------------------------------------------------------")
     print(" Plot (x,y) and (lon,lat) graph")
     print("-----------------------------------------------------------------------------------------------------------")
 
-    for object in objects:
-            #if not(object.area):
-                plt.figure(1)
-                plt.plot(object.x, object.y)
-                plt.scatter(object.x, object.y)
-                plt.scatter(sx, sy, color='blue')
-                axes = plt.gca()
-                axes.set_xlim([min(allX), max(allX)])
-                axes.set_ylim([min(allY), max(allY)])
+    if plotCoords:
+        for object in objects:
+                #if not(object.area):
+                    plt.figure(1)
+                    plt.plot(object.x, object.y)
+                    plt.scatter(object.x, object.y)
+                    plt.scatter(sx, sy, color='blue')
+                    axes = plt.gca()
+                    axes.set_xlim([min(allX), max(allX)])
+                    axes.set_ylim([min(allY), max(allY)])
 
-                plt.figure(2)
-                plt.plot(object.lon, object.lat)
-                plt.scatter(object.lon, object.lat)
-                plt.scatter(pfConfig.slon, pfConfig.slat, color='blue')
-                axes = plt.gca()
-                axes.set_xlim([min(allLon), max(allLon)])
-                axes.set_ylim([min(allLat), max(allLat)])
+                    plt.figure(2)
+                    plt.plot(object.lon, object.lat)
+                    plt.scatter(object.lon, object.lat)
+                    plt.scatter(pfConfig.slon, pfConfig.slat, color='blue')
+                    axes = plt.gca()
+                    axes.set_xlim([min(allLon), max(allLon)])
+                    axes.set_ylim([min(allLat), max(allLat)])
 
     print("-----------------------------------------------------------------------------------------------------------")
-    print(" Producing Potential Field map")
+    print(" Producing Global Repulsive Potential Field map")
     print("-----------------------------------------------------------------------------------------------------------")
 
-    pmap, xw, yw = PF.calc_potential_field(min(allX), max(allX), min(allY), max(allY), sx, sy, pfConfig.gx, pfConfig.gy,
-                                               pfConfig.grid_size, pfConfig.robot_radius, objects, mapType)
+    if newPFMap:
+        repmapG, xw, yw = PF.calc_potential_field(min(allX), max(allX), min(allY), max(allY), pfConfig.grid_size,
+                                           pfConfig.robot_radius, objects, gx, gy, mapType, FieldType.repulsive)
+
+        attrmap, xw, yw = PF.calc_potential_field(min(allX), max(allX), min(allY), max(allY), pfConfig.grid_size,
+                                                  pfConfig.robot_radius, objects, gx, gy, mapType, FieldType.attractive)
+
+        if insertDB:
+            dbConnection.insertRepG(client, mapNumber, [repmapG.tolist(), xw, yw], description)   # INSERT DATABASE
+
+    else:
+
+        repmapG, attrmap, xw, yw = dbConnection.getRepMap(client, mapNumber)   # CALL DATABASE
+
+    repmap = np.array(repmapG)
+    attrmap = np.array(attrmap)
+    pmap = repmap + attrmap
+
+    print("-----------------------------------------------------------------------------------------------------------")
+    print(" Navigation planning")
+    print("-----------------------------------------------------------------------------------------------------------")
+
+    routeX, routeY = nav.potential_field_planning(sx, sy, gx, gy, pmap, xmin, ymin)
+
+    print("-----------------------------------------------------------------------------------------------------------")
+    print(" Producing Local Repulsive Potential Field map")
+    print("-----------------------------------------------------------------------------------------------------------")
+
+    # shipPath = Object.Object(Area.trajectory, 'null')
+    # shipPath.x, shipPath.y = [sx, sy]
+    #
+    # repmapL, xw, yw = PF.calc_potential_field(min(allX), max(allX), min(allY), max(allY), pfConfig.grid_size,
+    #                                           pfConfig.robot_radius, shipPath, gx, gy, mapType, FieldType.repulsive)
+    #
+    # ship = [xw, yw, attrmap, repmapL, [routeX, routeY]]
+    # dbConnection.insertShip(client, ship, pfConfig.shipID)
 
     print("-----------------------------------------------------------------------------------------------------------")
     print(" Start potential field drawing")
     print("-----------------------------------------------------------------------------------------------------------")
 
     if PF.show_animation:
-        PF.draw_heatmap(pmap, xw, yw)
-        #PF.draw_slice_heatmap(pmap, yw)
+        print
+        if plot3DHeatmap:
+            PF.draw_3d_heatmap(repmap, xw, yw)
+            PF.draw_3d_heatmap(attrmap, xw, yw)
+            PF.draw_3d_heatmap(pmap, xw, yw)
+
+        if plot2DHeatmap:
+            #PF.draw_2d_heatmap(pmap, 0, 0, xw, yw)
+            PF.draw_2d_heatmap(pmap, np.array(routeX)/pfConfig.grid_size, np.array(routeY)/pfConfig.grid_size, xw, yw)
+
+        if plotSlice:
+            PF.draw_slice_heatmap(repmap, yw)
 
     plt.show()

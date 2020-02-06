@@ -1,26 +1,26 @@
-import time
 import math
-import matplotlib
-import numpy as np
 import Object
 import Utils as util
 import matplotlib.pyplot as plt
 from pyproj import Geod
 from Util import Transform
 
-ds = 50
+ds = 50     # Space between nodes for interpolation
 
+
+# Return new points between start end end point
 def interpolate(x1, y1, x2, y2, n):
     geoid = Geod(ellps="WGS84")
     return geoid.npts(x1, y1, x2, y2, n)
 
+
+# Create new points in object where distance between two sequent points < ds
 def extentObjects(object):
     cnt = 0
     newObject = object.copy()
     newObject.copyXY(object)
     newLon = []
     newLat = []
-    newLonLat = []
 
     for index in range(len(object.lon)):
         if index != len(object.lon)-1:
@@ -37,24 +37,39 @@ def extentObjects(object):
             cnt += n
             lon, lat = util.unpack(lonlat)
 
-            # newLonLat.append(object.lonlat[index])
             newLon.append(object.lon[index])
             newLat.append(object.lat[index])
 
-            # newLonLat.extend(lonlat)
             newLon.extend(lon)
             newLat.extend(lat)
 
-    # newLonLat.append(object.lonlat[-1])
     newLon.append(object.lon[-1])
     newLat.append(object.lat[-1])
 
-    # newObject.lonlat = util.merge(newLon, newLat)
     newObject.lon = newLon
     newObject.lat = newLat
 
     return newObject
 
+
+# Cut points from object which are out of region
+def boundObject(object, lonmin, lonmax, latmin, latmax):
+
+    lons = []
+    lats = []
+
+    for n in range(len(object.lon)):
+        if (lonmin <= object.lon[n] <= lonmax) and (latmin <= object.lat[n] <= latmax):
+            lons.append(object.lon[n])
+            lats.append(object.lat[n])
+
+    object.lon = lons
+    object.lat = lats
+
+    return object
+
+
+# Testcases
 def main():
 
     lon1 = [3.7462253, 3.749938, 3.7539657, 3.7545463, 3.7535907, 3.7547027, 3.7543556, 3.7536614, 3.7536998, 3.7503072, 3.7472361, 3.7438261, 3.7417986, 3.7407546, 3.738608, 3.7405009, 3.7427835, 3.7426739, 3.7432193, 3.7462253]

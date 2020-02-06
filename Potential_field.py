@@ -2,17 +2,30 @@ import numpy as np
 import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
+from mpl_toolkits.mplot3d import axes3d, Axes3D
 from matplotlib import cm
 import Sources.configs.potentialFieldConfig as pfConfig
-import math
 from tqdm import tqdm
-from Util.Utils import merge
+from Util.Utils import merge, unpack
+from Util.Enums import Maptype, Area, FieldType
+import scipy as sp
+import scipy.ndimage
 
 show_animation = True
 beta = 1
 
-def calc_potential_field(xmin, xmax, ymin, ymax, sx, sy, gx, gy, reso, rr, objects, mapType):
+# Apply Gaussian filter to map
+def filter(pmap, xw, yw):
+
+    sigma_y = 5
+    sigma_x = 5
+
+    # Apply gaussian filter
+    sigma = [sigma_y, sigma_x]
+    return sp.ndimage.filters.gaussian_filter(pmap, sigma, mode='constant')
+
+# Calculate the attractive or repulsive field
+def calc_potential_field(xmin, xmax, ymin, ymax, reso, rr, objects, gx, gy, mapType, fieldType):
 
     # scale
     minx = xmin - pfConfig.AREA_WIDTH
@@ -25,7 +38,12 @@ def calc_potential_field(xmin, xmax, ymin, ymax, sx, sy, gx, gy, reso, rr, objec
     # Extract all coordinates
     coords = []
     for object in objects:
-        coords.extend(merge(object.x, object.y))
+        if mapType == Maptype.waterways and object.area == Area.waterway:
+            coords.extend(merge(object.x, object.y))
+        if mapType == Maptype.boundaries and object.area == Area.boundary:
+            coords.extend(merge(object.x, object.y))
+        if mapType == Maptype.all:
+            coords.extend(merge(object.x, object.y))
 
 
     # calc each potential
@@ -36,10 +54,26 @@ def calc_potential_field(xmin, xmax, ymin, ymax, sx, sy, gx, gy, reso, rr, objec
 
         for iy in range(yw):
             y = iy * reso + miny
-            ug = 0  # calc_attractive_potential(x, y, gx, gy)
-            uo = calc_repulsive_potential_3(x, y, coords, rr)
-            uf = ug + uo
-            pmap[ix][iy] = uf
+
+            if fieldType == FieldType.attractive:
+                p = calc_attractive_potential(x, y, gx, gy)
+            if fieldType == FieldType.repulsive:
+                p = calc_repulsive_potential(x, y, coords, rr)
+                if p > 10:
+                    p = 10
+                p = -p
+
+            pmap[ix][iy] = p
+
+    pmap = np.array(pmap)
+
+    if fieldType == FieldType.repulsive:
+        pmap = filter(pmap, xw, yw)
+        pmap[pmap < -0.5] = -0.5
+
+    if fieldType == FieldType.attractive:
+        pmap = np.array(pmap)
+        pmap = np.interp(pmap, (min(map(min, pmap)), max(map(max, pmap))), (0, 1))
 
     return pmap, xw, yw
 
@@ -48,66 +82,31 @@ def calc_attractive_potential(x, y, gx, gy):
     return 0.5 * pfConfig.Gatt * np.hypot(x - gx, y - gy)
 
 
-def calc_repulsive_potential_3(x, y, nodes, rr):
-    freptot = 0
-    for node in nodes:
-        dq = np.hypot(x - node[0], y - node[1])
-        value = 0.5 * pfConfig.Grep * (1.0 / dq - 1.0 / rr) ** 2
-        freptot += value
-
-    return -math.log(freptot)
-
-
-def calc_repulsive_potential_2(x, y, objects, rr):
-    freptot = 0
-    cntObj = 0
-    usedNodeList = []
-    for object in objects:
-        if (object.area):
-            for i,_ in enumerate(object.x):
-                dq = np.hypot(x - object.x[i], y - object.y[i])
-                if not([object.x[i], object.y[i]] in usedNodeList):
-                    value = 0.5 * pfConfig.Grep * (1.0 / dq - 1.0 / rr) ** 2
-                    freptot += value
-                    usedNodeList.append([object.x[i], object.y[i]])
-
-            cntObj += 1
-
-    return -math.log(freptot)
-
-
-def calc_repulsive_potential(x, y, objects, rr):
+def calc_repulsive_potential(x, y, nodes, rr):
+    ox, oy = unpack(nodes)
 
     # search nearest obstacle
-    minid = [-1, -1]    # [id of node, id of object]
+    minid = -1
     dmin = float("inf")
-    for object in objects:
-        for i,_ in enumerate(object.x):
-            d = np.hypot(x - object.x[i], y - object.y[i])
-            if dmin >= d:
-                dmin = d
-                minid = [i, object.id]
+    for i, _ in enumerate(ox):
+        d = np.hypot(x - ox[i], y - oy[i])
+        if dmin >= d:
+            dmin = d
+            minid = i
 
-    if not(minid == [0, 0]):# and not(x == objects[minid[1]].xy[0][minid[0]]) and not(y == objects[minid[1]].xy[1][minid[0]]):
-        # calc repulsive potential
-        dq = np.hypot(x - objects[minid[1]].x[minid[0]], y - objects[minid[1]].y[minid[0]])
+    # calc repulsive potential
+    dq = np.hypot(x - ox[minid], y - oy[minid])
 
-        if dq <= rr:
-            if dq <= 0.1:
-                dq = 0.1
+    if dq <= rr:
+        if dq <= 0.1:
+            dq = 0.1
 
-            value = 0.5 * pfConfig.Grep * (1.0 / dq - 1.0 / rr) ** 2
-
-            if (objects[minid[1]].area):
-                return math.log(value)
-            else:
-                return 0
-        else:
-            return 0.0
+        return 0.5 * pfConfig.Grep * (1.0 / dq - 1.0 / rr) ** 2
     else:
         return 0.0
 
 
+# Draw slice of map in Y-direction
 def draw_slice_heatmap(data, xw):
     xcnt = 0
 
@@ -131,14 +130,15 @@ def draw_slice_heatmap(data, xw):
             plt.clf()
         if input == "0":
             break
-        if xcnt == 791:
+        if xcnt == xw:
             break
 
 
-def draw_heatmap(data, xw, yw):
+# Plot 3D heatmap of map
+def draw_3d_heatmap(data, xw, yw):
 
     # make data
-    data = np.array(data).T
+    newData = np.array(data).T
     x = np.linspace(0, xw, xw)
     y = np.linspace(0, yw, yw)
     X, Y = np.meshgrid(x, y)
@@ -146,10 +146,23 @@ def draw_heatmap(data, xw, yw):
     # plot surface
     fig = plt.figure()
     ax = fig.gca(projection='3d')
-    surf = ax.plot_surface(X, Y, data, cmap=cm.coolwarm)
+    surf = ax.plot_surface(X, Y, newData, cmap=cm.Greys, linewidths=0)
     fig.colorbar(surf)
 
 
+# Plot 2D heatmap of map
+def draw_2d_heatmap(data, routeX, routeY, xw, yw):
+
+    data = np.array(data)
+    x, y = np.mgrid[0:xw, 0:yw]
+
+    plt.figure()
+    plt.pcolor(x, y, data, cmap=cm.Greys)
+    plt.plot(routeX, routeY)
+    plt.colorbar()
+
+
+# Testcases
 def main():
     print("potential_field_planning start")
 
@@ -167,7 +180,7 @@ def main():
     pmap, xw, yw = calc_potential_field(0,0,0,0,sx, sy, gx, gy, ox, oy, grid_size, robot_radius)
 
     if show_animation:
-        draw_heatmap(pmap, xw, yw)
+        draw_3d_heatmap(pmap, xw, yw)
 
 
 if __name__ == '__main__':
