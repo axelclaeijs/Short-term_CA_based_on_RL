@@ -21,6 +21,7 @@ plotCoords = 1
 plot2DHeatmap = 1
 plot3DHeatmap = 1
 plotSlice = 0
+shipInput = 0
 description = 'old_rep500_attr2_rr10'
 
 if __name__ == '__main__':
@@ -79,7 +80,6 @@ if __name__ == '__main__':
                     plt.figure(1)
                     plt.plot(object.x, object.y)
                     plt.scatter(object.x, object.y)
-                    plt.scatter(sx, sy, color='blue')
                     axes = plt.gca()
                     axes.set_xlim([min(allX), max(allX)])
                     axes.set_ylim([min(allY), max(allY)])
@@ -87,10 +87,10 @@ if __name__ == '__main__':
                     plt.figure(2)
                     plt.plot(object.lon, object.lat)
                     plt.scatter(object.lon, object.lat)
-                    plt.scatter(pfConfig.slon, pfConfig.slat, color='blue')
                     axes = plt.gca()
                     axes.set_xlim([min(allLon), max(allLon)])
                     axes.set_ylim([min(allLat), max(allLat)])
+
 
     print("-----------------------------------------------------------------------------------------------------------")
     print(" Producing Global Repulsive Potential Field map")
@@ -98,40 +98,95 @@ if __name__ == '__main__':
 
     if newPFMap:
         repmapG, xw, yw = PF.calc_potential_field(min(allX), max(allX), min(allY), max(allY), pfConfig.grid_size,
-                                           pfConfig.robot_radius, objects, gx, gy, mapType, FieldType.repulsive)
-
-        attrmap, xw, yw = PF.calc_potential_field(min(allX), max(allX), min(allY), max(allY), pfConfig.grid_size,
-                                                  pfConfig.robot_radius, objects, gx, gy, mapType, FieldType.attractive)
+                                           pfConfig.robot_radius, objects, 0, 0, mapType, FieldType.repulsive)
 
         if insertDB:
             dbConnection.insertRepG(client, mapNumber, [repmapG.tolist(), xw, yw], description)   # INSERT DATABASE
 
     else:
 
-        repmapG, attrmap, xw, yw = dbConnection.getRepMap(client, mapNumber)   # CALL DATABASE
+        repmapG, xw, yw = dbConnection.getRepMap(client, mapNumber)   # CALL DATABASE
 
     repmap = np.array(repmapG)
-    attrmap = np.array(attrmap)
-    pmap = repmap + attrmap
+    pmap = repmap
 
     print("-----------------------------------------------------------------------------------------------------------")
-    print(" Navigation planning")
+    print(" Input foreign ships")
     print("-----------------------------------------------------------------------------------------------------------")
 
-    routeX, routeY = nav.potential_field_planning(sx, sy, gx, gy, pmap, xmin, ymin)
+    shipCoords = []
+
+    if shipInput:
+        i = 1
+
+        print "Start of ship nr" + str(i) + "    (enter like this: lon, lat) \n"
+        inp = raw_input()  # Get the input
+        inp_list = inp.split(",")
+        startCoord = [float(a) for a in inp_list]
+
+        print "Stop of ship nr" + str(i) + "    (enter like this: lon, lat) \n"
+        inp = raw_input()  # Get the input
+        inp_list = inp.split(",")
+        stopCoord = [float(a) for a in inp_list]
+
+        shipCoords.append([startCoord, stopCoord])
+
+        print "Would you like to add more ships? (Enter or 'Q' for stop)"
+        inp = raw_input()
+
+        while inp != "Q":  # Loop until it is a blank line
+            i += 1
+            print "Start of ship nr" + str(i) + "    (enter like this: lon, lat)\n "
+            inp = raw_input()  # Get the input
+            inp_list = inp.split(",")
+            startCoord = [float(a) for a in inp_list]
+
+            print "Stop of ship nr" + str(i) + "    (enter like this: lon, lat)\n "
+            inp = raw_input()  # Get the input
+            inp_list = inp.split(",")
+            stopCoord = [float(a) for a in inp_list]
+
+            shipCoords.append([startCoord, stopCoord])
+
+            print "Would you like to add more ships? (Enter or 'Q' for stop)"
+            inp = raw_input()
+    else:
+
+        shipCoords = pfConfig.shipCoords
 
     print("-----------------------------------------------------------------------------------------------------------")
-    print(" Producing Local Repulsive Potential Field map")
+    print(" Navigation planning per ship")
     print("-----------------------------------------------------------------------------------------------------------")
 
-    # shipPath = Object.Object(Area.trajectory, 'null')
-    # shipPath.x, shipPath.y = [sx, sy]
-    #
-    # repmapL, xw, yw = PF.calc_potential_field(min(allX), max(allX), min(allY), max(allY), pfConfig.grid_size,
-    #                                           pfConfig.robot_radius, shipPath, gx, gy, mapType, FieldType.repulsive)
-    #
-    # ship = [xw, yw, attrmap, repmapL, [routeX, routeY]]
-    # dbConnection.insertShip(client, ship, pfConfig.shipID)
+    shipPaths = []
+    ships = []
+    i = 0
+
+    for ship in shipCoords:
+
+        i += 1
+        shipPath = Object.Object(Area.trajectory, i)
+        startLonLat = ship[0]
+        stopLonLat = ship[1]
+        sx = transform.distance(ref_lonmin, ref_latmin, startLonLat[0], ref_latmin)
+        sy = transform.distance(ref_lonmin, ref_latmin, ref_lonmin, startLonLat[1])
+        gx = transform.distance(ref_lonmin, ref_latmin, stopLonLat[0], ref_latmin)
+        gy = transform.distance(ref_lonmin, ref_latmin, ref_lonmin, stopLonLat[1])
+
+        attrmap, xw, yw = PF.calc_potential_field(min(allX), max(allX), min(allY), max(allY), pfConfig.grid_size,
+                                                  pfConfig.robot_radius, [], gx, gy, mapType, FieldType.attractive)
+
+        shipPF = np.array(repmapG) + np.array(attrmap)
+
+        shipPath.x, shipPath.y = nav.potential_field_planning(sx, sy, gx, gy, shipPF, xmin, ymin, xmax, ymax, objects)
+        shipPaths.append(shipPath)
+
+        repmapL, xw, yw = PF.calc_potential_field(min(allX), max(allX), min(allY), max(allY), pfConfig.grid_size,
+                                                  pfConfig.robot_radius, [shipPath], 0, 0, Maptype.trajectories, FieldType.repulsive)
+
+        ship = [xw, yw, attrmap.tolist(), repmapL.tolist(), [shipPath.x, shipPath.y]]
+        ships.append(ship)
+        dbConnection.insertShip(client, ship, pfConfig.shipID)
 
     print("-----------------------------------------------------------------------------------------------------------")
     print(" Start potential field drawing")
@@ -140,13 +195,18 @@ if __name__ == '__main__':
     if PF.show_animation:
         print
         if plot3DHeatmap:
-            PF.draw_3d_heatmap(repmap, xw, yw)
-            PF.draw_3d_heatmap(attrmap, xw, yw)
-            PF.draw_3d_heatmap(pmap, xw, yw)
+            # PF.draw_3d_heatmap(repmap, xw, yw)
+            # PF.draw_3d_heatmap(attrmap, xw, yw)
+            # PF.draw_3d_heatmap(pmap, xw, yw)
+            for ship in ships:
+                pmap = np.array(ship[2]) + np.array(ship[3]) + np.array(repmapG)
+                PF.draw_3d_heatmap(pmap, xw, yw)
 
         if plot2DHeatmap:
             #PF.draw_2d_heatmap(pmap, 0, 0, xw, yw)
-            PF.draw_2d_heatmap(pmap, np.array(routeX)/pfConfig.grid_size, np.array(routeY)/pfConfig.grid_size, xw, yw)
+            for ship in ships:
+                pmap = np.array(ship[2]) + np.array(ship[3]) + np.array(repmapG)
+                PF.draw_2d_heatmap(pmap, np.array(ship[4][0])/pfConfig.grid_size, np.array(ship[4][1])/pfConfig.grid_size, xw, yw)
 
         if plotSlice:
             PF.draw_slice_heatmap(repmap, yw)

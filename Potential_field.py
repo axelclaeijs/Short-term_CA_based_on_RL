@@ -42,7 +42,7 @@ def calc_potential_field(xmin, xmax, ymin, ymax, reso, rr, objects, gx, gy, mapT
             coords.extend(merge(object.x, object.y))
         if mapType == Maptype.boundaries and object.area == Area.boundary:
             coords.extend(merge(object.x, object.y))
-        if mapType == Maptype.all:
+        if mapType == Maptype.all or mapType == Maptype.trajectories:
             coords.extend(merge(object.x, object.y))
 
 
@@ -58,9 +58,10 @@ def calc_potential_field(xmin, xmax, ymin, ymax, reso, rr, objects, gx, gy, mapT
             if fieldType == FieldType.attractive:
                 p = calc_attractive_potential(x, y, gx, gy)
             if fieldType == FieldType.repulsive:
-                p = calc_repulsive_potential(x, y, coords, rr)
+                p = calc_repulsive_potential(x, y, coords, rr, mapType)
                 if p > 10:
                     p = 10
+
                 p = -p
 
             pmap[ix][iy] = p
@@ -70,6 +71,10 @@ def calc_potential_field(xmin, xmax, ymin, ymax, reso, rr, objects, gx, gy, mapT
     if fieldType == FieldType.repulsive:
         pmap = filter(pmap, xw, yw)
         pmap[pmap < -0.5] = -0.5
+
+        if mapType == Maptype.trajectories:     # Only for trajectories repulsive field is positive
+            #pmap[pmap < -0.2] = -0.2
+            pmap = -pmap
 
     if fieldType == FieldType.attractive:
         pmap = np.array(pmap)
@@ -82,7 +87,7 @@ def calc_attractive_potential(x, y, gx, gy):
     return 0.5 * pfConfig.Gatt * np.hypot(x - gx, y - gy)
 
 
-def calc_repulsive_potential(x, y, nodes, rr):
+def calc_repulsive_potential(x, y, nodes, rr, mapType):
     ox, oy = unpack(nodes)
 
     # search nearest obstacle
@@ -100,8 +105,10 @@ def calc_repulsive_potential(x, y, nodes, rr):
     if dq <= rr:
         if dq <= 0.1:
             dq = 0.1
-
-        return 0.5 * pfConfig.Grep * (1.0 / dq - 1.0 / rr) ** 2
+        if mapType == Maptype.trajectories:
+            return 0.5 * pfConfig.GrepL * (1.0 / dq - 1.0 / rr) ** 2
+        else:
+            return 0.5 * pfConfig.GrepG * (1.0 / dq - 1.0 / rr) ** 2
     else:
         return 0.0
 

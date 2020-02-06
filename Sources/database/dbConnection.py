@@ -1,9 +1,10 @@
+import Sources.configs.potentialFieldConfig as pfConfig
 
 # Inset waterways and areas into DB
 def insertObject(dbClient, object):
 
     client = dbClient
-    db = client.map
+    db = client.map.objects
     lonlats = []
     xy = []
 
@@ -22,14 +23,14 @@ def insertObject(dbClient, object):
         'area': object.area
     }
 
-    result = db.objects.insert_one(document)
+    result = db.insert_one(document)
 
 
 # Insert global repulsive potentialfield of certain map
 def insertRepG(dbClient, mapNumber, map, description):
 
     client = dbClient
-    db = client.map
+    db = client.map.pf
 
     repmap = map[0]
     xw = map[1]
@@ -43,14 +44,14 @@ def insertRepG(dbClient, mapNumber, map, description):
         'yw': yw
     }
 
-    result = db.pf.insert_one(document)
+    result = db.insert_one(document)
 
 
 # Insert a ship with its timeseries of repulsive fields and global navigation route
 def insertShip(dbClient, ship, number):
 
     client = dbClient
-    db = client.map.pf
+    db = client.map
 
     xw = ship[0]
     yw = ship[1]
@@ -74,9 +75,9 @@ def insertShip(dbClient, ship, number):
 def amountObjects(dbClient):
 
     client = dbClient
-    db = client.map
+    db = client.map.objects
 
-    amount = db.objects.find({}).count()
+    amount = db.find({}).count()
 
     return amount
 
@@ -84,9 +85,9 @@ def amountObjects(dbClient):
 def getObject(dbClient, objectID):
 
     client = dbClient
-    db = client.map
+    db = client.map.objects
 
-    object = db.objects.find_one({"id": objectID})
+    object = db.find_one({"id": objectID})
 
     xy = object[u'geometry'][u'xy']
     lonlat = object[u'geometry'][u'coordinates']
@@ -101,25 +102,24 @@ def getObject(dbClient, objectID):
 def getRepMap(dbClient, mapNumer):
 
     client = dbClient
-    db = client.map
+    db = client.map.pf
 
-    pfMap = db.pf.find_one({"mapNumber": mapNumer})
+    pfMap = db.find_one({"mapNumber": mapNumer})
 
     repmap = pfMap[u'repmap']
-    attr = pfMap[u'attrmap']
     xw = pfMap[u'xw']
     yw = pfMap[u'yw']
 
-    return repmap, attr, xw, yw
+    return repmap, xw, yw
 
 
 # Request global repulsive map
 def getShip(dbClient, shipNumber):
 
     client = dbClient
-    db = client.map.pf
+    db = client.map.ships
 
-    pfMap = db.ships.find_one({"shipNumber": shipNumber})
+    pfMap = db.find_one({"shipNumber": shipNumber})
 
     xw = pfMap[u'xw']
     yw = pfMap[u'yw']

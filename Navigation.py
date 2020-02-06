@@ -1,6 +1,6 @@
 import numpy as np
 import Sources.configs.potentialFieldConfig as pfConfig
-
+import matplotlib.pyplot as plt
 
 # Possible movements of the ship
 def get_motion_model():
@@ -18,7 +18,15 @@ def get_motion_model():
 
 
 # Calculate ideal path from start to goal
-def potential_field_planning(sx, sy, gx, gy, pmap, minx, miny):
+def potential_field_planning(sx, sy, gx, gy, pmap, minx, miny, maxx, maxy, objects):
+
+    gain = 1
+    xp = 0
+    yp = 0
+    xpprev = -1
+    ypprev = -1
+    xpprevprev = -2
+    ypprevprev = -2
 
     # search path
     d = np.hypot(sx - gx, sy - gy)
@@ -45,12 +53,25 @@ def potential_field_planning(sx, sy, gx, gy, pmap, minx, miny):
                 miniy = iny
         ix = minix
         iy = miniy
+
+        xpprevprev = xpprev
+        ypprevprev = ypprev
+        xpprev = xp
+        ypprev = yp
         xp = ix * pfConfig.grid_size
         yp = iy * pfConfig.grid_size
 
         d = np.hypot(gx - xp, gy - yp)
+        print d
+        print (xp, yp)
 
-        rx.append(xp)
-        ry.append(yp)
+        if (xp == xpprev and yp == ypprev) or (xp == xpprevprev and yp == ypprevprev):
+            gain += 10
+        else:
+            gain = 1
+            rx.append(xp)
+            ry.append(yp)
+
+        motion = np.array(get_motion_model()) * gain
 
     return rx, ry

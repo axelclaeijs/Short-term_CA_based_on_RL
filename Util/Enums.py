@@ -8,7 +8,8 @@ class Area(Enum):
 class Maptype(Enum):
     waterways = 0
     boundaries = 1
-    all = 2
+    trajectories = 2
+    all = 3
 
 class FieldType(Enum):
     repulsive = 0
