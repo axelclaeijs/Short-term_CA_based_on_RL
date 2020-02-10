@@ -28,3 +28,8 @@ database = 'map'
 
 # Start and stop coords
 shipCoords = [[[3.757,51.113],[3.736,51.111]],[[3.72696,51.1032],[3.7255,51.0877]]]#,[[3.7455,51.1118],[3.7359,51.0808]],[[3.759,51.123],[3.72673,51.077]]]
+# Ships speed in knots
+shipSpeeds = [7, 8, 9]
+
+# Interpolation
+ds = 50     # Space between nodes for interpolation

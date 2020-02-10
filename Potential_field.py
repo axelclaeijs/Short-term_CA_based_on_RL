@@ -10,6 +10,10 @@ from Util.Utils import merge, unpack
 from Util.Enums import Maptype, Area, FieldType
 import scipy as sp
 import scipy.ndimage
+import Navigation as nav
+import Util.Utils as util
+import Object
+import Ship
 
 show_animation = True
 beta = 1
@@ -26,7 +30,18 @@ def filter(pmap, xw, yw):
 
 # Calculate the attractive or repulsive field
 def calc_potential_field(xmin, xmax, ymin, ymax, reso, rr, objects, gx, gy, mapType, fieldType):
-
+    """
+    Calculate the potential field for  given list of objects
+    :param xmin, xmax, ymin, ymax: range of map
+    :param reso:
+    :param rr:
+    :param objects: list of objects
+    :param gx:
+    :param gy:
+    :param mapType:
+    :param fieldType:
+    :return: potentialfield, x-width and y-width
+    """
     # scale
     minx = xmin - pfConfig.AREA_WIDTH
     miny = ymin - pfConfig.AREA_WIDTH
@@ -44,7 +59,6 @@ def calc_potential_field(xmin, xmax, ymin, ymax, reso, rr, objects, gx, gy, mapT
             coords.extend(merge(object.x, object.y))
         if mapType == Maptype.all or mapType == Maptype.trajectories:
             coords.extend(merge(object.x, object.y))
-
 
     # calc each potential
     pmap = [[0.0 for i in range(yw)] for i in range(xw)]
@@ -70,7 +84,7 @@ def calc_potential_field(xmin, xmax, ymin, ymax, reso, rr, objects, gx, gy, mapT
 
     if fieldType == FieldType.repulsive:
         pmap = filter(pmap, xw, yw)
-        pmap[pmap < -0.5] = -0.5
+        pmap[pmap < -1] = -1
 
         if mapType == Maptype.trajectories:     # Only for trajectories repulsive field is positive
             #pmap[pmap < -0.2] = -0.2
@@ -111,6 +125,38 @@ def calc_repulsive_potential(x, y, nodes, rr, mapType):
             return 0.5 * pfConfig.GrepG * (1.0 / dq - 1.0 / rr) ** 2
     else:
         return 0.0
+
+
+def calc_repulsive_potential_on_timestamp(xmin, xmax, ymin, ymax, reso, rr, shipObject, gx, gy, mapType, fieldType, time):
+    """
+    x and y coords of trajectorie
+    speed of ship [knots]
+    timestamp [hh:mm:ss]
+    :return:
+    """
+
+    speed = util.knotsToMperh(shipObject.knots)
+    ox, oy = nav.calcPositionOnTrajectory(shipObject, time)
+
+    # Create single trajectory node
+    node = Object.Object(Area.trajectory, 0)
+    node.x = [ox]
+    node.y = [oy]
+
+    pmap, xw, yw = calc_potential_field(xmin, xmax, ymin, ymax, reso, rr, [node], gx, gy, mapType, fieldType)
+
+    return pmap, xw, yw
+
+
+def calc_repulsive_potential_series(xmin, xmax, ymin, ymax, reso, rr, x, y, mapType, fieldType, speed):
+    """
+    Given its speed, a series of repulsive fields is generated per minute
+    x and y coords of trajectory
+    speed of ship [knots]
+    :return:
+    """
+
+    speed = util.knotsToMperh(speed)
 
 
 # Draw slice of map in Y-direction

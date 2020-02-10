@@ -4,8 +4,7 @@ import Utils as util
 import matplotlib.pyplot as plt
 from pyproj import Geod
 from Util import Transform
-
-ds = 50     # Space between nodes for interpolation
+import Sources.configs.potentialFieldConfig as pfConfig
 
 
 # Return new points between start end end point
@@ -32,7 +31,7 @@ def extentObjects(object):
             latNext = object.lat[index + 1]
 
             l = Transform.distance(lonCurrent, latCurrent, lonNext, latNext)
-            n = int(math.ceil(l / ds))
+            n = int(math.ceil(l / pfConfig.ds))
             lonlat = interpolate(lonCurrent, latCurrent, lonNext, latNext, n)
             cnt += n
             lon, lat = util.unpack(lonlat)

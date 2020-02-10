@@ -27,3 +27,11 @@ class Object():
     def copyXY(self, objectB):
         self.x = objectB.x
         self.y = objectB.y
+
+    def insertXY(self, x, y):
+        self.x.append(x)
+        self.y.append(y)
+
+    def setSingleXY(self, x, y):
+        self.x = [x]
+        self.y = [y]

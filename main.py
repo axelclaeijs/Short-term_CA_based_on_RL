@@ -11,6 +11,7 @@ from Util.Enums import Maptype, Area, FieldType
 import Navigation as nav
 import numpy as np
 import fetchObjects
+import Ship
 
 mapType = Maptype.all
 newPFMap = 0
@@ -22,7 +23,7 @@ plot2DHeatmap = 1
 plot3DHeatmap = 1
 plotSlice = 0
 shipInput = 0
-description = 'old_rep500_attr2_rr10'
+description = 'rep500_attr2_rr10_seriesPF'
 
 if __name__ == '__main__':
     if len(parser.sys.argv) != 3:
@@ -164,8 +165,9 @@ if __name__ == '__main__':
 
     for ship in shipCoords:
 
-        i += 1
-        shipPath = Object.Object(Area.trajectory, i)
+        repmapLs = []
+        shipObject = Ship.Ship(i, pfConfig.shipSpeeds[i])
+
         startLonLat = ship[0]
         stopLonLat = ship[1]
         sx = transform.distance(ref_lonmin, ref_latmin, startLonLat[0], ref_latmin)
@@ -176,17 +178,31 @@ if __name__ == '__main__':
         attrmap, xw, yw = PF.calc_potential_field(min(allX), max(allX), min(allY), max(allY), pfConfig.grid_size,
                                                   pfConfig.robot_radius, [], gx, gy, mapType, FieldType.attractive)
 
+        shipObject.attr = attrmap
+
         shipPF = np.array(repmapG) + np.array(attrmap)
 
-        shipPath.x, shipPath.y = nav.potential_field_planning(sx, sy, gx, gy, shipPF, xmin, ymin, xmax, ymax, objects)
-        shipPaths.append(shipPath)
+        shipObject.x, shipObject.y = nav.potential_field_planning(sx, sy, gx, gy, shipPF, xmin, ymin, xmax, ymax, objects)
 
-        repmapL, xw, yw = PF.calc_potential_field(min(allX), max(allX), min(allY), max(allY), pfConfig.grid_size,
-                                                  pfConfig.robot_radius, [shipPath], 0, 0, Maptype.trajectories, FieldType.repulsive)
+        shipObject.distanceTrajectory = nav.calcDistanceTrajectory(shipObject.x, shipObject.y)
 
-        ship = [xw, yw, attrmap.tolist(), repmapL.tolist(), [shipPath.x, shipPath.y]]
-        ships.append(ship)
-        dbConnection.insertShip(client, ship, pfConfig.shipID)
+        repmapL, xw, yw = PF.calc_repulsive_potential_on_timestamp(min(allX), max(allX), min(allY), max(allY), pfConfig.grid_size,
+                                                  pfConfig.robot_radius, shipObject, 0, 0, Maptype.trajectories, FieldType.repulsive, "00:10:00")
+
+        repmapL1, xw, yw = PF.calc_repulsive_potential_on_timestamp(min(allX), max(allX), min(allY), max(allY), pfConfig.grid_size,
+                                                  pfConfig.robot_radius, shipObject, 0, 0, Maptype.trajectories, FieldType.repulsive, "00:30:00")
+
+        repmapLs.append(repmapL.tolist())
+        repmapLs.append(repmapL1.tolist())
+
+        shipObject.rep = repmapL.tolist()
+        shipObject.xw = xw
+        shipObject.yw = yw
+
+        ships.append(shipObject)
+        dbConnection.insertShip(client, shipObject)
+
+        i += 1
 
     print("-----------------------------------------------------------------------------------------------------------")
     print(" Start potential field drawing")
@@ -199,7 +215,7 @@ if __name__ == '__main__':
             # PF.draw_3d_heatmap(attrmap, xw, yw)
             # PF.draw_3d_heatmap(pmap, xw, yw)
             for ship in ships:
-                pmap = np.array(ship[2]) + np.array(ship[3]) + np.array(repmapG)
+                pmap = np.array(ship.attr) + np.array(ship.rep[0]) + np.array(repmapG)
                 PF.draw_3d_heatmap(pmap, xw, yw)
 
         if plot2DHeatmap:

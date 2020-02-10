@@ -48,25 +48,30 @@ def insertRepG(dbClient, mapNumber, map, description):
 
 
 # Insert a ship with its timeseries of repulsive fields and global navigation route
-def insertShip(dbClient, ship, number):
+def insertShip(dbClient, ship):
 
     client = dbClient
     db = client.map
 
-    xw = ship[0]
-    yw = ship[1]
-    attrmap = ship[2]
-    repmap = ship[3]
-    route = ship[4]
-    shipNumber = number
+    #TODO: dynamic adding repulsive local maps
+
+    xw = ship.xw
+    yw = ship.yw
+    attrmap = ship.attr
+    repmap = ship.rep
+    repmap1 = 0#ship.rep[1]
+    routeX = ship.x
+    routeY = ship.y
+    shipID= ship.id
 
     document = {
-        'shipNumber': shipNumber,
+        'shipID': shipID,
         'xw': xw,
         'yw': yw,
         'attrmap': attrmap,
         'repmap': repmap,
-        'route': route
+        'routeX': routeX,
+        'routeY': routeY
     }
 
     result = db.ships.insert_one(document)
@@ -114,18 +119,19 @@ def getRepMap(dbClient, mapNumer):
 
 
 # Request global repulsive map
-def getShip(dbClient, shipNumber):
+def getShip(dbClient, shipID):
 
     client = dbClient
     db = client.map.ships
 
-    pfMap = db.find_one({"shipNumber": shipNumber})
+    pfMap = db.find_one({"shipID": shipID})
 
     xw = pfMap[u'xw']
     yw = pfMap[u'yw']
     attrmap = pfMap[u'attrmap']
     repmap = pfMap[u'repmap']
-    route = pfMap[u'route']
+    routeX = pfMap[u'routeX']
+    routeY = pfMap[u'routeY']
 
-    return repmap, attrmap, xw, yw, route
+    return repmap, attrmap, xw, yw, routeX, routeY
 

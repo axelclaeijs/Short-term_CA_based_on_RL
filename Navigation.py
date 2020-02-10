@@ -1,6 +1,8 @@
 import numpy as np
 import Sources.configs.potentialFieldConfig as pfConfig
 import matplotlib.pyplot as plt
+import Util.Transform as transform
+import Util.Utils as util
 
 # Possible movements of the ship
 def get_motion_model():
@@ -75,3 +77,58 @@ def potential_field_planning(sx, sy, gx, gy, pmap, minx, miny, maxx, maxy, objec
         motion = np.array(get_motion_model()) * gain
 
     return rx, ry
+
+
+def calcDistanceTrajectory(x,y):
+    """
+    Return list with distances between trajectory-coords
+    :param x: x-coords of trajectory
+    :param y: y-coords of trajectory
+    :return: list of distances
+    """
+    distanceTrajectory = []
+
+    for i in range(len(x) - 1):
+        distanceTrajectory.append(transform.distanceXY(x[i], y[i], x[i+1], y[i+1]))
+
+    return distanceTrajectory
+
+
+def calcPositionOnTrajectory(ship, time):
+    """
+    Given a speed and time, return the position of the ship on its trajectory
+    speed [m/h]
+    x, y trajectory [m]
+    time from start [hh:mm:ss]
+    """
+    splitTime = time.split(":")
+    hours = float(splitTime[0]) + (float(splitTime[1]) * 1/60) + (float(splitTime[2]) * 1/3600)
+
+    distance = util.knotsToMperh(ship.knots) * hours
+
+    d = float("inf")
+    d_temp = 0
+    index = 0
+
+    for i in range(len(ship.distanceTrajectory)):
+        dev = d_temp - distance
+        if abs(dev) <= d:
+            d = abs(dev)
+            index = i
+        d_temp += ship.distanceTrajectory[i]
+
+
+
+    return ship.x[index], ship.y[index]
+
+def calcTimeForTrajectory(ship):
+    """
+    Calculate the time done over the trajectory
+    :param ship: with speed and trajectory distances
+    :return: time [h]
+    """
+
+    distance = sum(ship.distanceTrajectory)
+    time = distance / util.knotsToMperh(ship.knots)
+
+    return time
